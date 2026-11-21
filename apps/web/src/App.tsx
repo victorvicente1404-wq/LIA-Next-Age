@@ -53,7 +53,6 @@ export default function App() {
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [playingMessage, setPlayingMessage] = useState<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -273,10 +272,8 @@ export default function App() {
       }
       const audioUrl = URL.createObjectURL(await response.blob());
       const audio = new Audio(audioUrl);
-      audioRef.current = audio;
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl);
-        audioRef.current = null;
         setPlayingMessage(null);
       };
       audio.onerror = () => {
