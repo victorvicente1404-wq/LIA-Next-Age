@@ -8,13 +8,23 @@ type FileEntry = {
   size: number | null;
 };
 type FilePreview = { path: string; content: string; size: number };
+type PatchProposal = {
+  proposal_id: string;
+  path: string;
+  diff: string;
+  status: string;
+};
+type AppliedPatch = { operation_id: string; path: string; status: string };
 
-async function readJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+async function requestJson<T>(
+  url: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(url, init);
   const data = (await response.json()) as T | { detail?: string };
   if (!response.ok) {
     const detail = (data as { detail?: string }).detail;
-    throw new Error(detail ?? "Não foi possível acessar o workspace.");
+    throw new Error(detail ?? "Não foi possível concluir a operação.");
   }
   return data as T;
 }
@@ -25,12 +35,16 @@ export default function DevPanel() {
   const [directory, setDirectory] = useState(".");
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [preview, setPreview] = useState<FilePreview | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [proposal, setProposal] = useState<PatchProposal | null>(null);
+  const [applied, setApplied] = useState<AppliedPatch | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
-    readJson<Workspace[]>("/api/v1/dev/workspaces")
+    requestJson<Workspace[]>("/api/v1/dev/workspaces")
       .then((items) => {
         if (!active) return;
         setWorkspaces(items);
@@ -55,7 +69,7 @@ export default function DevPanel() {
     let active = true;
     setLoading(true);
     setError("");
-    readJson<FileEntry[]>(
+    requestJson<FileEntry[]>(
       `/api/v1/dev/workspaces/${workspaceId}/files?path=${encodeURIComponent(directory)}`,
     )
       .then((items) => {
@@ -77,13 +91,18 @@ export default function DevPanel() {
     if (entry.kind === "directory") {
       setDirectory(entry.path);
       setPreview(null);
+      setProposal(null);
+      setApplied(null);
       return;
     }
     try {
-      const item = await readJson<FilePreview>(
+      const item = await requestJson<FilePreview>(
         `/api/v1/dev/workspaces/${workspaceId}/file?path=${encodeURIComponent(entry.path)}`,
       );
       setPreview(item);
+      setEditContent(item.content);
+      setProposal(null);
+      setApplied(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível abrir o arquivo.");
     }
@@ -95,6 +114,79 @@ export default function DevPanel() {
     parts.pop();
     setDirectory(parts.length ? parts.join("/") : ".");
     setPreview(null);
+    setProposal(null);
+    setApplied(null);
+  }
+
+  async function preparePatch() {
+    if (!preview || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await requestJson<PatchProposal>(
+        `/api/v1/dev/workspaces/${workspaceId}/patches`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: preview.path, content: editContent }),
+        },
+      );
+      setProposal(result);
+      setApplied(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível preparar o diff.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function approvePatch() {
+    if (!proposal || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await requestJson<AppliedPatch>(
+        `/api/v1/dev/patches/${proposal.proposal_id}/apply`,
+        { method: "POST" },
+      );
+      setApplied(result);
+      setProposal(null);
+      if (preview) {
+        const updated = await requestJson<FilePreview>(
+          `/api/v1/dev/workspaces/${workspaceId}/file?path=${encodeURIComponent(preview.path)}`,
+        );
+        setPreview(updated);
+        setEditContent(updated.content);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível aplicar a alteração.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function rollbackPatch() {
+    if (!applied || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await requestJson(
+        `/api/v1/dev/patches/${applied.operation_id}/rollback`,
+        { method: "POST" },
+      );
+      setApplied(null);
+      if (preview) {
+        const restored = await requestJson<FilePreview>(
+          `/api/v1/dev/workspaces/${workspaceId}/file?path=${encodeURIComponent(preview.path)}`,
+        );
+        setPreview(restored);
+        setEditContent(restored.content);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível desfazer a alteração.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -103,9 +195,9 @@ export default function DevPanel() {
         <div>
           <div className="eyebrow">LIA DEV · WORKSPACE EXPLORER</div>
           <h2>Área de desenvolvimento</h2>
-          <p>Inspeção de código em pastas que você autorizou explicitamente.</p>
+          <p>Inspecione arquivos e prepare alterações com diff antes de qualquer gravação.</p>
         </div>
-        <span className="readonly-label">Somente leitura</span>
+        <span className="readonly-label">Aprovação obrigatória</span>
       </div>
 
       {workspaces.length > 0 && (
@@ -118,6 +210,8 @@ export default function DevPanel() {
               setWorkspaceId(event.target.value);
               setDirectory(".");
               setPreview(null);
+              setProposal(null);
+              setApplied(null);
             }}
           >
             {workspaces.map((workspace) => (
@@ -164,11 +258,64 @@ export default function DevPanel() {
             {preview ? (
               <>
                 <div className="file-preview-header">{preview.path}</div>
-                <pre>{preview.content}</pre>
+                <textarea
+                  className="dev-editor"
+                  aria-label="Conteúdo proposto para o arquivo"
+                  value={editContent}
+                  onChange={(event) => {
+                    setEditContent(event.target.value);
+                    setProposal(null);
+                    setApplied(null);
+                  }}
+                  spellCheck={false}
+                  disabled={saving || Boolean(proposal)}
+                />
+                {!proposal && !applied && (
+                  <div className="patch-actions">
+                    <span>Editar aqui não grava o arquivo.</span>
+                    <button
+                      type="button"
+                      onClick={() => void preparePatch()}
+                      disabled={saving || editContent === preview.content}
+                    >
+                      {saving ? "Preparando…" : "Preparar diff"}
+                    </button>
+                  </div>
+                )}
+                {proposal && (
+                  <div className="patch-review">
+                    <div className="patch-review-heading">
+                      <strong>Revisão da alteração</strong>
+                      <span>O arquivo ainda não foi modificado.</span>
+                    </div>
+                    <pre className="diff-preview">{proposal.diff || "Nenhuma diferença encontrada."}</pre>
+                    <div className="patch-actions">
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        onClick={() => setProposal(null)}
+                        disabled={saving}
+                      >
+                        Cancelar
+                      </button>
+                      <button type="button" onClick={() => void approvePatch()} disabled={saving}>
+                        {saving ? "Aplicando…" : "Aprovar e aplicar"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {applied && (
+                  <div className="patch-applied">
+                    <span>Alteração aplicada em {applied.path}.</span>
+                    <button type="button" onClick={() => void rollbackPatch()} disabled={saving}>
+                      {saving ? "Desfazendo…" : "Desfazer alteração"}
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               <div className="preview-placeholder">
-                Selecione um arquivo para visualizar o conteúdo.
+                Selecione um arquivo para visualizar e, se desejar, preparar uma alteração.
               </div>
             )}
           </div>
@@ -176,8 +323,9 @@ export default function DevPanel() {
       )}
 
       <p className="dev-footnote">
-        A Lia Dev ainda não altera arquivos nem executa comandos. Isso só será habilitado com diff,
-        sandbox e aprovação explícita.
+        A proposta mostra o diff e não altera nada. A gravação exige um segundo clique explícito;
+        mudanças concorrentes bloqueiam a aplicação. Cada aplicação cria backup para rollback.
+        Por enquanto, só arquivos existentes de texto UTF-8 até 256 KiB podem ser alterados.
       </p>
     </section>
   );
