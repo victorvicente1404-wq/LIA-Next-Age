@@ -46,7 +46,8 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] Memória SQLite independente do modelo, gerenciamento explícito e recuperação contextual.
 - [x] Lia Dev: listar workspaces autorizados, navegar pastas e ler arquivos de texto com limites.
 - [x] CI: testes Python, Ruff e build web.
-- [ ] Lia Dev: diff/patch revisável, aprovação, sandbox e operações Git.
+- [x] Lia Dev: proposta de patch com diff, aprovação em endpoint separado, verificação de versão, escrita atômica e backup para rollback.
+- [ ] Lia Dev: execução de comandos tipados e operações Git com aprovação.
 - [ ] Integrar voz, percepção e conectores opcionais.
 - [ ] Integrar agentes e primitivas OpenJarvis sem instalar dependências pesadas obrigatórias no Android.
 - [ ] Validar execução no aparelho Android/Termux.
