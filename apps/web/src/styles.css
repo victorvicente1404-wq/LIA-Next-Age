@@ -8,7 +8,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
-button, textarea, select { font: inherit; }
+button, textarea, select, input { font: inherit; }
 .shell { min-height: 100vh; display: grid; place-items: center; padding: 18px; background: radial-gradient(ellipse at top, #252b3a 0, #111318 58%); }
 .chat-panel { width: min(100%, 920px); min-height: min(860px, calc(100vh - 36px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #343947; border-radius: 26px; background: rgba(23, 26, 34, .96); box-shadow: 0 24px 90px #0006; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 26px; border-bottom: 1px solid #303542; }
@@ -41,10 +41,10 @@ button, textarea, select { font: inherit; }
 .composer { display: flex; align-items: flex-end; gap: 12px; padding: 18px 22px 12px; border-top: 1px solid #303542; }
 .composer textarea { flex: 1; resize: vertical; min-height: 54px; max-height: 180px; padding: 15px; border: 1px solid #3a4050; border-radius: 15px; outline: none; color: #f2f3f5; background: #171b24; }
 .composer textarea:focus { border-color: #9b79a8; }
-.composer button { min-width: 92px; height: 52px; border: 0; border-radius: 14px; color: #171820; background: #d5a66b; font-weight: 750; cursor: pointer; }
-.composer button:disabled { opacity: .45; cursor: not-allowed; }
+.composer button, .memory-form-actions button { min-width: 92px; height: 52px; border: 0; border-radius: 14px; color: #171820; background: #d5a66b; font-weight: 750; cursor: pointer; }
+.composer button:disabled, .memory-form-actions button:disabled { opacity: .45; cursor: not-allowed; }
 .footer-note { padding: 0 24px 17px; text-align: center; }
-.dev-panel { flex: 1; padding: 25px; }
+.dev-panel, .memory-panel { flex: 1; padding: 25px; }
 .dev-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
 .eyebrow { color: #d5a66b; font-size: 10px; font-weight: 800; letter-spacing: .14em; }
 .dev-heading h2 { margin: 8px 0 6px; font-size: 25px; letter-spacing: -.04em; }
@@ -52,7 +52,8 @@ button, textarea, select { font: inherit; }
 .readonly-label { flex: 0 0 auto; padding: 7px 10px; border: 1px solid #4b5960; border-radius: 99px; color: #9dd4b4; font-size: 11px; }
 .dev-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .dev-toolbar label { color: #aeb8ca; font-size: 12px; }
-.dev-toolbar select { min-width: 180px; padding: 9px 12px; border: 1px solid #3a4050; border-radius: 10px; color: #f2f3f5; background: #171b24; }
+.dev-toolbar select, .memory-form select, .memory-form input, .memory-form textarea, .memory-search input { width: 100%; padding: 10px 12px; border: 1px solid #3a4050; border-radius: 10px; outline: none; color: #f2f3f5; background: #171b24; }
+.dev-toolbar select { min-width: 180px; width: auto; }
 .dev-browser { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(0, 1.5fr); min-height: 350px; overflow: hidden; border: 1px solid #343947; border-radius: 16px; }
 .file-list { min-width: 0; border-right: 1px solid #343947; background: #191d26; }
 .file-list-header, .file-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; padding: 9px 12px; border-bottom: 1px solid #343947; color: #b9bfcc; font-size: 11px; overflow-wrap: anywhere; }
@@ -71,6 +72,30 @@ button, textarea, select { font: inherit; }
 .empty-workspaces code { color: #d5a66b; font-size: 12px; overflow-wrap: anywhere; }
 .dev-error { margin: 12px 0; }
 .dev-footnote { margin: 15px 0 0; font-size: 11px; }
+.memory-form { display: grid; gap: 13px; padding: 18px; border: 1px solid #343947; border-radius: 16px; background: #1a1e27; }
+.memory-form label { display: grid; gap: 7px; color: #aeb8ca; font-size: 12px; }
+.memory-form-row { display: grid; grid-template-columns: .7fr 1.3fr; gap: 12px; }
+.memory-form textarea { resize: vertical; min-height: 78px; line-height: 1.5; }
+.memory-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.memory-form-actions span { color: #8792a5; font-size: 11px; }
+.memory-form-actions button { height: 42px; padding: 0 15px; font-size: 12px; }
+.memory-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 24px 0 12px; }
+.memory-list-heading h3 { margin: 0; font-size: 15px; }
+.memory-list-heading h3 span { margin-left: 6px; color: #8e98aa; font-size: 12px; }
+.memory-search { display: flex; gap: 7px; }
+.memory-search input { width: min(220px, 35vw); }
+.memory-search button { padding: 8px 12px; border: 1px solid #444b5b; border-radius: 9px; color: #d5dbe7; background: #252a35; font-size: 11px; }
+.memory-list { display: grid; gap: 10px; }
+.memory-item { padding: 14px; border: 1px solid #343947; border-radius: 13px; background: #1b2029; }
+.memory-item-top { display: flex; align-items: center; gap: 9px; }
+.memory-kind { padding: 4px 8px; border-radius: 99px; background: #343040; color: #d8b7e4; font-size: 10px; }
+.kind-preference { background: #263b36; color: #a8d8c2; }
+.kind-knowledge { background: #30384a; color: #b7c9ef; }
+.kind-note { background: #44382b; color: #e5c69e; }
+.memory-item-top code { color: #8e98aa; font-size: 10px; }
+.memory-item-top button { margin-left: auto; border: 0; color: #c98e88; background: transparent; font-size: 11px; cursor: pointer; }
+.memory-item p { margin: 10px 0; color: #e1e4eb; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.memory-item small { color: #7f8a9d; font-size: 10px; }
 @media (max-width: 600px) {
   .shell { padding: 0; }
   .chat-panel { min-height: 100vh; border: 0; border-radius: 0; }
@@ -79,9 +104,13 @@ button, textarea, select { font: inherit; }
   .connection { max-width: 112px; line-height: 1.4; }
   .composer { padding: 14px 13px 10px; }
   .composer button { min-width: 72px; }
-  .dev-panel { padding: 18px 13px; }
+  .dev-panel, .memory-panel { padding: 18px 13px; }
   .dev-heading { flex-direction: column; }
   .dev-browser { grid-template-columns: 1fr; }
   .file-list { border-right: 0; border-bottom: 1px solid #343947; max-height: 260px; overflow: auto; }
   .file-preview { min-height: 220px; }
+  .memory-form-row { grid-template-columns: 1fr; }
+  .memory-list-heading { align-items: flex-start; flex-direction: column; }
+  .memory-search { width: 100%; }
+  .memory-search input { width: 100%; }
 }
