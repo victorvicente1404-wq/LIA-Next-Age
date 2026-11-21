@@ -118,7 +118,7 @@ export default function App() {
       const response = await fetch("/api/v1/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages, conversation_id: conversationId }),
+        body: JSON.stringify({ messages: nextMessages.slice(-40), conversation_id: conversationId }),
       });
       const data = (await response.json()) as {
         content?: string;
