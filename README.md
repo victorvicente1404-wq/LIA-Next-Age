@@ -5,7 +5,7 @@ Assistente pessoal local-first, modular e extensível.
 ## Princípios
 
 - **Local-first:** conversação, memória e automações essenciais devem funcionar sem depender de créditos ou cotas de provedores de IA.
-- **Integrações desacopladas:** serviços externos (por exemplo, WhatsApp via Evolution API e serviços Google) são conectores opcionais, não o cérebro da Lia.
+- **Integrações desacopladas:** serviços externos (por exemplo, WhatsApp via Evolution API e serviços Google) são conectores opcionais, não o cérebro.
 - **Memória independente do modelo:** dados e lembranças pertencem à aplicação, com armazenamento explícito e recuperação contextual.
 - **Lia Dev:** agente de engenharia capaz de inspecionar workspaces autorizados, propor alterações revisáveis, mostrar diffs, executar testes e operar Git com aprovação.
 - **Segurança por padrão:** permissões mínimas, ações sensíveis sujeitas a aprovação, segredos fora do repositório e histórico de alterações.
@@ -15,15 +15,15 @@ Assistente pessoal local-first, modular e extensível.
 
 1. **Interface:** aplicação web responsiva (Vite/React), utilizável no celular e no desktop.
 2. **Núcleo:** API Python para conversação, roteamento, políticas e coordenação de ferramentas.
-3. **Runtime local:** adaptador OpenAI-compatible para llama.cpp; OpenJarvis é uma base avaliada para integração futura.
+3. **Runtime local:** adaptador OpenJarvis opcional para seu motor LlamaCppEngine; adaptador HTTP direto para llama.cpp como caminho compatível e fallback exclusivamente local.
 4. **Memória:** SQLite local, independente do modelo, com operações explícitas de criar, pesquisar e apagar.
-5. **Lia Dev:** primeira camada de inspeção somente leitura em workspaces explicitamente autorizados; diffs, alterações e terminal controlado serão etapas posteriores.
+5. **Lia Dev:** interface de exploração e API de leitura em workspaces explicitamente autorizados; diffs, alterações e terminal controlado serão etapas posteriores.
 6. **Percepção e voz:** módulos opcionais para áudio, câmera e contexto, sempre com indicadores e consentimento.
 7. **Conectores:** adaptadores independentes para WhatsApp, Google e dispositivos domésticos.
 
 ## Política de provedores
 
-O modelo local é o padrão. Provedores remotos podem ser configurados voluntariamente como opção, mas nunca devem ser acionados silenciosamente nem ser requisito para o funcionamento básico. A API de chat atual envia mensagens apenas para o endpoint local configurado e informa `external_traffic: false`.
+O modelo local é o padrão. Provedores remotos podem ser configurados voluntariamente como opção, mas nunca devem ser acionados silenciosamente nem ser requisito para o funcionamento básico. A API de chat informa qual motor local respondeu e mantém `external_traffic: false`.
 
 ## Segurança
 
@@ -39,21 +39,21 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 ## Progresso
 
 - [x] Monorepo inicial e regras de engenharia.
-- [x] Interface web inicial com chat.
+- [x] Interface web com chat, gerenciador de memória e painel Lia Dev.
 - [x] API Python e health check.
-- [x] Adaptador de inferência local para llama.cpp.
-- [x] Memória SQLite independente do modelo.
-- [x] Testes básicos para chat, saúde e persistência.
+- [x] Adaptador direto local para llama.cpp.
+- [x] Adaptador opcional para OpenJarvis LlamaCppEngine, selecionável por configuração.
+- [x] Memória SQLite independente do modelo e com gerenciamento explícito.
 - [x] Lia Dev: listar workspaces autorizados, navegar pastas e ler arquivos de texto com limites.
-- [x] CI para testes Python, Ruff e build web.
+- [x] CI: testes Python, Ruff e build web.
 - [ ] Recuperar memórias relevantes no contexto de conversa, com política de privacidade.
 - [ ] Lia Dev: diff/patch revisável, aprovação, sandbox e operações Git.
 - [ ] Integrar voz, percepção e conectores opcionais.
-- [ ] Avaliar integração direta com OpenJarvis sem quebrar compatibilidade Android.
+- [ ] Integrar agentes e primitivas OpenJarvis sem instalar dependências pesadas obrigatórias no Android.
 - [ ] Validar execução no aparelho Android/Termux.
 
 ## Rodar localmente
 
-Consulte [o guia Android/Termux](docs/ANDROID_TERMUX.md) e [o guia do núcleo](services/core/README.md).
+Consulte [o guia Android/Termux](docs/ANDROID_TERMUX.md), [o guia do núcleo](services/core/README.md) e [as decisões de integração OpenJarvis](docs/DECISIONS.md).
 
 Este repositório é a nova base da Lia. O branch `foundation/bootstrap` é o ambiente de desenvolvimento; a branch `main` permanece intacta até a revisão e validação da fundação.
