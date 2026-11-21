@@ -138,5 +138,10 @@ def test_git_commit_rejects_sensitive_paths_and_globs(tmp_path: Path):
             "/api/v1/dev/workspaces/workspace-1/git/proposals",
             json={"action": "commit", "message": "bad", "paths": ["*.py"]},
         )
+        unsafe_checkout = client.post(
+            "/api/v1/dev/workspaces/workspace-1/git/proposals",
+            json={"action": "checkout", "branch": "../../main"},
+        )
     assert secret.status_code == 400
     assert glob.status_code == 400
+    assert unsafe_checkout.status_code == 400
