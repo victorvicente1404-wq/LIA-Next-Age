@@ -4,6 +4,7 @@ import ipaddress
 import time
 from pathlib import Path
 from typing import Literal, Protocol
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
@@ -296,9 +297,20 @@ def create_app(
     )
 
     def is_loopback(request: Request) -> bool:
-        host = request.client.host if request.client else ""
+        peer_host = request.client.host if request.client else ""
         try:
-            return ipaddress.ip_address(host).is_loopback
+            if not ipaddress.ip_address(peer_host).is_loopback:
+                return False
+        except ValueError:
+            return False
+        origin = request.headers.get("origin")
+        if not origin:
+            return True
+        try:
+            origin_host = urlsplit(origin).hostname or ""
+            if origin_host.lower() == "localhost":
+                return True
+            return ipaddress.ip_address(origin_host).is_loopback
         except ValueError:
             return False
 
