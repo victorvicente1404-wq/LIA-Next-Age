@@ -140,9 +140,11 @@ def test_voice_synthesis_requires_configured_model():
 def test_voice_synthesis_rejects_blank_or_long_text(tmp_path: Path):
     model = tmp_path / "voice.onnx"
     model.write_bytes(b"model")
+    piper = tmp_path / "piper"
+    piper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     voice = LocalVoice(
         stt_url="",
-        piper_binary="/usr/bin/piper",
+        piper_binary=str(piper),
         piper_model=model,
     )
     with pytest.raises(VoiceProcessingError):
