@@ -19,7 +19,7 @@ def test_memory_store_normalizes_content_and_key(tmp_path):
     [
         ("unknown", "conteúdo"),
         ("note", "   "),
-        ("fact", "\\n\\t"),
+        ("fact", chr(10) + chr(9)),
     ],
 )
 def test_memory_store_rejects_invalid_entries(tmp_path, kind, content):
