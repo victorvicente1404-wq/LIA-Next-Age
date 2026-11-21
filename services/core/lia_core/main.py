@@ -354,7 +354,7 @@ def create_app(
             content=answer,
             engine=getattr(request.app.state.inference, "engine_name", "llama.cpp"),
             memories_used=len(memory_records),
-            agent="openjarvis_orchestrator" if agent_result else "simple",
+            agent=str(agent_result.get("agent", "lia_orchestrator")) if agent_result else "simple",
             tool_calls=int(agent_result.get("tool_calls", 0)),
             agent_turns=int(agent_result.get("turns", 1)),
         )
