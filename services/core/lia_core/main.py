@@ -309,6 +309,13 @@ def create_app(
         if not config.pairing_enabled or not request.url.path.startswith("/api/v1/"):
             return await call_next(request)
         if is_loopback(request):
+            local_origin = request.headers.get("origin")
+            if local_origin and local_origin.rstrip("/") not in config.allowed_origins:
+                return Response(
+                    content='{"detail":"Origem local não autorizada."}',
+                    status_code=403,
+                    media_type="application/json",
+                )
             return await call_next(request)
         if request.url.scheme != "https":
             return Response(
@@ -397,7 +404,9 @@ def create_app(
     async def create_pairing_request(
         payload: PairingRequestCreate, request: Request
     ) -> PairingRequestResponse:
-        if config.pairing_enabled and not is_loopback(request):
+        if not config.pairing_enabled:
+            raise HTTPException(status_code=404, detail="Pareamento de dispositivos está desativado.")
+        if not is_loopback(request):
             if request.url.scheme != "https":
                 raise HTTPException(status_code=403, detail="Pareamento remoto exige HTTPS.")
             client_host = request.client.host if request.client else "unknown"
@@ -420,8 +429,11 @@ def create_app(
 
     @app.get("/api/v1/pairing/requests")
     async def list_pairing_requests(request: Request) -> list[dict[str, object]]:
-        if not is_loopback(request):
-            raise HTTPException(status_code=403, detail="Aprovação exige acesso local.")
+        if not is_loopback(request) or (
+            request.headers.get("origin")
+            and request.headers["origin"].rstrip("/") not in config.allowed_origins
+        ):
+            raise HTTPException(status_code=403, detail="Aprovação exige acesso local confiável.")
         return request.app.state.pairing.list_pending()
 
     @app.post("/api/v1/pairing/requests/{request_id}/approve")
@@ -437,14 +449,20 @@ def create_app(
 
     @app.get("/api/v1/pairing/devices")
     async def list_paired_devices(request: Request) -> list[dict[str, object]]:
-        if not is_loopback(request):
-            raise HTTPException(status_code=403, detail="Administração exige acesso local.")
+        if not is_loopback(request) or (
+            request.headers.get("origin")
+            and request.headers["origin"].rstrip("/") not in config.allowed_origins
+        ):
+            raise HTTPException(status_code=403, detail="Administração exige acesso local confiável.")
         return request.app.state.pairing.list_devices()
 
     @app.delete("/api/v1/pairing/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
     async def revoke_paired_device(device_id: str, request: Request) -> Response:
-        if not is_loopback(request):
-            raise HTTPException(status_code=403, detail="Revogação exige acesso local.")
+        if not is_loopback(request) or (
+            request.headers.get("origin")
+            and request.headers["origin"].rstrip("/") not in config.allowed_origins
+        ):
+            raise HTTPException(status_code=403, detail="Revogação exige acesso local confiável.")
         if not request.app.state.pairing.revoke(device_id):
             raise HTTPException(status_code=404, detail="Dispositivo não encontrado ou já revogado.")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
