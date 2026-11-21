@@ -18,6 +18,9 @@ class Settings:
     voice_tts_model: Path | None = None
     voice_timeout_seconds: float = 90.0
     voice_max_audio_bytes: int = 20 * 1024 * 1024
+    pairing_enabled: bool = False
+    pairing_token_ttl_seconds: int = 30 * 24 * 60 * 60
+    allowed_origins: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -46,5 +49,12 @@ class Settings:
             voice_timeout_seconds=float(os.getenv("LIA_VOICE_TIMEOUT", "90")),
             voice_max_audio_bytes=int(
                 os.getenv("LIA_VOICE_MAX_AUDIO_BYTES", str(20 * 1024 * 1024))
+            ),
+            pairing_enabled=os.getenv("LIA_PAIRING_ENABLED", "false").strip().lower() in {"1", "true", "yes"},
+            pairing_token_ttl_seconds=int(os.getenv("LIA_PAIRING_TOKEN_TTL", str(30 * 24 * 60 * 60))),
+            allowed_origins=tuple(
+                origin.strip().rstrip("/")
+                for origin in os.getenv("LIA_ALLOWED_ORIGINS", "").split(",")
+                if origin.strip()
             ),
         )
