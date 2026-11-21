@@ -87,7 +87,7 @@ class ChatResponse(BaseModel):
 
 class PairingRequestCreate(BaseModel):
     device_name: str = Field(min_length=1, max_length=64)
-    scopes: list[str] = Field(default_factory=lambda: ["chat", "voice"], min_length=1, max_length=2)
+    scopes: list[str] = Field(default_factory=lambda: ["chat", "voice"], min_length=1, max_length=3)
 
 
 class PairingApproval(BaseModel):
@@ -396,6 +396,7 @@ def create_app(
         request.state.paired_device = {
             "device_id": device["device_id"],
             "device_name": device["device_name"],
+            "scopes": device["scopes"],
         }
         return await call_next(request)
 
@@ -578,8 +579,12 @@ def create_app(
     @app.post("/api/v1/chat", response_model=ChatResponse)
     async def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         messages = [{"role": item.role, "content": item.content} for item in payload.messages]
+        paired_device = getattr(request.state, "paired_device", None)
+        memory_scope_allowed = (
+            paired_device is None or "memory:read" in paired_device["scopes"]
+        )
         memory_records = []
-        if payload.use_memory:
+        if payload.use_memory and memory_scope_allowed:
             memory_records = request.app.state.memory.relevant(
                 payload.messages[-1].content,
                 limit=5,
@@ -604,6 +609,7 @@ def create_app(
             agent_runner = getattr(request.app.state.inference, "complete_with_agent", None)
             if (
                 payload.use_tools
+                and memory_scope_allowed
                 and callable(agent_runner)
                 and messages[-1]["role"] == "user"
             ):
