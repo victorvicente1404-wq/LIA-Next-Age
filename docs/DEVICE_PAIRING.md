@@ -13,7 +13,7 @@ O modo local continua funcionando sem pareamento, sem conta hospedada e sem serv
 - Os controles de aprovação, listagem e revogação só aceitam loopback. Requisições de navegador ao loopback também precisam vir de uma origem permitida.
 - Uma solicitação de pareamento expira em 5 minutos. O código é aleatório, de uso único e bloqueado após 5 tentativas incorretas.
 - Há limite de 5 solicitações por minuto e por endereço de origem, além de no máximo 10 solicitações pendentes.
-- A aprovação acontece no dispositivo principal; o token de acesso é mostrado uma única vez.
+- A aprovação acontece no dispositivo principal. O código aleatório de 256 bits, já conhecido pelo dispositivo solicitante, passa a ser seu token Bearer após a aprovação; o endpoint local nunca devolve um segredo.
 - Apenas hashes SHA-256 dos tokens são persistidos. Tokens têm validade configurável (30 dias por padrão) e podem ser revogados individualmente.
 - Escopos disponíveis são `chat`, `voice` e `memory:read`. O padrão é somente `chat` e `voice`; memória exige solicitação e aprovação explícitas. Sem `memory:read`, o chat remoto não injeta memórias nem habilita ferramentas que consultam a memória. Escrita de memória e Lia Dev não são concedidas; Lia Dev permanece exclusivamente local.
 - Cada requisição autenticada exige timestamp com tolerância de 60 segundos, nonce aleatório de uso único e assinatura HMAC-SHA256. Repetir a mesma requisição assinada é recusado.
@@ -49,10 +49,10 @@ Restrinja a porta no firewall à rede/dispositivos necessários. Não use este c
 2. A resposta contém `request_id`, um `pairing_code` temporário e os escopos pedidos.
 3. No dispositivo principal, consulte `GET /api/v1/pairing/requests` por loopback. Confirme que o nome do dispositivo e o pedido são esperados.
 4. Aprove localmente com `POST /api/v1/pairing/requests/{request_id}/approve` e JSON `{"pairing_code":"CODIGO_MOSTRADO_NO_CELULAR"}`.
-5. A resposta local contém o token Bearer uma única vez. Transfira-o ao dispositivo remoto por um canal confiável e guarde-o no armazenamento seguro do sistema operacional. Não o cole em chats ou tickets.
+5. Após a aprovação, o dispositivo remoto usa o próprio `pairing_code` como token Bearer. A resposta de aprovação contém apenas metadados e nunca retorna o segredo. Guarde o código/token no armazenamento seguro do cliente; não o cole em chats ou tickets.
 6. Liste dispositivos com `GET /api/v1/pairing/devices` e revogue com `DELETE /api/v1/pairing/devices/{device_id}` a partir do dispositivo principal.
 
-A aprovação é uma ação explícita. Criar uma solicitação remota não concede acesso.
+A aprovação é uma ação explícita. Criar uma solicitação remota não concede acesso. O segredo de pareamento tem 256 bits de entropia, expira em cinco minutos se não for aprovado e, após aprovação, assume a validade configurada do token.
 
 ## Assinatura das requisições
 
