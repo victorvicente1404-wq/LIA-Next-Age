@@ -21,6 +21,7 @@ async function requestJson<T>(
   init?: RequestInit,
 ): Promise<T> {
   const response = await fetch(url, init);
+  if (response.status === 204) return undefined as T;
   const data = (await response.json()) as T | { detail?: string };
   if (!response.ok) {
     const detail = (data as { detail?: string }).detail;
@@ -138,6 +139,19 @@ export default function DevPanel() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function cancelProposal() {
+    if (!proposal) return;
+    try {
+      await requestJson<void>(
+        `/api/v1/dev/patches/${proposal.proposal_id}`,
+        { method: "DELETE" },
+      );
+    } catch {
+      // The proposal may already have expired; clearing the local review remains safe.
+    }
+    setProposal(null);
   }
 
   async function approvePatch() {
@@ -293,7 +307,7 @@ export default function DevPanel() {
                       <button
                         type="button"
                         className="secondary-action"
-                        onClick={() => setProposal(null)}
+                        onClick={() => void cancelProposal()}
                         disabled={saving}
                       >
                         Cancelar
