@@ -1,6 +1,6 @@
 # Lia Core
 
-Python service for orchestration, local inference, and persistent memory. It is deliberately independent from hosted AI providers.
+Python service for orchestration, local inference, persistent memory, and safe developer workspace inspection. It is deliberately independent from hosted AI providers.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ The service binds to loopback by default in the documented command. Do not expos
 
 ## Local inference with llama.cpp
 
-Start a compatible llama.cpp server separately, for example:
+Start a compatible llama.cpp server separately:
 
 ```bash
 llama-server -m /path/to/model.gguf --host 127.0.0.1 --port 8080
@@ -32,6 +32,7 @@ Configure the core with:
 - `LIA_LLM_BASE_URL`: OpenAI-compatible base URL; default `http://127.0.0.1:8080/v1`.
 - `LIA_LLM_MODEL`: model identifier sent to the local server; default `local-model`.
 - `LIA_DATA_DIR`: directory for the local SQLite memory database; default `~/.lia`.
+- `LIA_DEV_WORKSPACES`: optional, path-separated list of directories Lia Dev is allowed to inspect.
 
 The adapter calls only the configured local endpoint. It does not fall back to cloud providers. If the local model is unavailable, chat returns HTTP 503 with a clear error.
 
@@ -42,8 +43,11 @@ The adapter calls only the configured local endpoint. It does not fall back to c
 - `POST /api/v1/memories`: save a fact, preference, knowledge item, or note.
 - `GET /api/v1/memories?q=...&kind=...`: search/list saved memories.
 - `DELETE /api/v1/memories/{id}`: delete one memory.
+- `GET /api/v1/dev/workspaces`: list explicitly allowed developer workspaces.
+- `GET /api/v1/dev/workspaces/{id}/files?path=...`: list a directory.
+- `GET /api/v1/dev/workspaces/{id}/file?path=...`: read a UTF-8 text file up to 256 KiB.
 
-Memory is stored separately from the model in SQLite. This first version stores explicit memory entries; automatic extraction and retrieval into prompts will be added only after the consent and memory-policy layer is defined.
+Lia Dev is read-only at this stage. It blocks path traversal, skips symlinks in directory listings, excludes common generated directories and secret files, and rejects oversized or non-UTF-8 files. It cannot write, install packages, or execute terminal commands yet.
 
 ## Tests
 
