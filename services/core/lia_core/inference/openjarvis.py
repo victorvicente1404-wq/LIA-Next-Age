@@ -9,7 +9,7 @@ from lia_core.memory.store import MemoryStore
 
 
 class OpenJarvisInferenceClient:
-    """Use OpenJarvis's local engine and optional local agent orchestration."""
+    """Use OpenJarvis as an optional local inference engine for Lia orchestration."""
 
     engine_name = "OpenJarvis / llama.cpp"
     agent_name = "OpenJarvis Orchestrator"
@@ -54,6 +54,7 @@ class OpenJarvisInferenceClient:
             raise LocalModelError("OpenJarvis returned an empty local response")
         return content.strip()
 
+
     async def complete_with_agent(
         self,
         messages: list[dict[str, str]],
@@ -61,20 +62,11 @@ class OpenJarvisInferenceClient:
         max_tokens: int,
         memory: MemoryStore,
     ) -> dict[str, Any]:
-        from lia_core.agents.openjarvis import run_openjarvis_agent
+        from lia_core.agents.orchestrator import LiaOrchestrator
 
         try:
-            result = await asyncio.to_thread(
-                run_openjarvis_agent,
-                self._engine,
-                self.model,
-                messages,
-                memory,
-                temperature=temperature,
-                max_tokens=max_tokens,
+            return await LiaOrchestrator(self.complete, memory).run(
+                messages, temperature=temperature, max_tokens=max_tokens
             )
         except Exception as exc:
-            raise LocalModelError("OpenJarvis agent orchestration failed") from exc
-        if not isinstance(result.get("content"), str) or not result["content"].strip():
-            raise LocalModelError("OpenJarvis agent returned an empty response")
-        return result
+            raise LocalModelError("Lia local orchestration failed") from exc
