@@ -53,6 +53,7 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] Lia Dev: operações Git tipadas (branch, commit, checkout e revert) com revisão e aprovação.
 - [ ] Integrar voz, percepção e conectores opcionais.
 - [x] Primeira versão do orquestrador cognitivo próprio da Lia, com loop limitado e ferramentas locais allowlisted; OpenJarvis opcional como runtime.
+- [x] Perfis especialistas subordinados ao mesmo orquestrador (geral, memória e engenharia), com allowlists específicas e sem modelos ou memórias separados.
 - [ ] Definir e validar o ambiente de execução quando a fundação estiver pronta (sem exigir Termux nesta etapa).
 
 ## Rodar localmente
