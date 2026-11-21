@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import DevPanel from "./DevPanel";
 import MemoryPanel from "./MemoryPanel";
 import PairingPanel from "./PairingPanel";
+import PairingClient from "./PairingClient";
+import { authenticatedFetch, getActiveDeviceId } from "./pairing";
 
 type Message = {
   role: "user" | "assistant";
@@ -56,6 +58,9 @@ export default function App() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const isLocalClient = typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  const [pairedDeviceId, setPairedDeviceId] = useState<string | null>(() => getActiveDeviceId());
 
   useEffect(() => {
     return () => {
@@ -78,14 +83,18 @@ export default function App() {
   useEffect(() => {
     let active = true;
     async function restoreLatestConversation() {
+      if (!isLocalClient && !pairedDeviceId) {
+        setHistoryLoading(false);
+        return;
+      }
       try {
-        const response = await fetch("/api/v1/conversations?limit=30");
+        const response = await authenticatedFetch("/api/v1/conversations?limit=30");
         if (!response.ok) throw new Error("Não foi possível carregar o histórico.");
         const items = (await response.json()) as Conversation[];
         if (!active) return;
         setConversations(items);
         if (items.length > 0) {
-          const latest = await fetch(`/api/v1/conversations/${items[0].id}`);
+          const latest = await authenticatedFetch(`/api/v1/conversations/${items[0].id}`);
           if (!latest.ok) throw new Error("Não foi possível restaurar a conversa.");
           const detail = (await latest.json()) as StoredConversation;
           if (!active) return;
@@ -103,11 +112,15 @@ export default function App() {
     }
     void restoreLatestConversation();
     return () => { active = false; };
-  }, []);
+  }, [isLocalClient, pairedDeviceId]);
 
   useEffect(() => {
     let active = true;
-    fetch("/api/v1/voice/status")
+    if (!isLocalClient && !pairedDeviceId) {
+      setVoiceStatus(null);
+      return () => { active = false; };
+    }
+    authenticatedFetch("/api/v1/voice/status")
       .then((response) => {
         if (!response.ok) throw new Error("Status de voz indisponível.");
         return response.json() as Promise<VoiceStatus>;
@@ -150,7 +163,7 @@ export default function App() {
     try {
       let conversationId = currentConversationId;
       if (!conversationId) {
-        const created = await fetch("/api/v1/conversations", {
+        const created = await authenticatedFetch("/api/v1/conversations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title: "Nova conversa" }),
@@ -162,7 +175,7 @@ export default function App() {
         setConversations((current) => [conversation, ...current]);
       }
 
-      const response = await fetch("/api/v1/chat", {
+      const response = await authenticatedFetch("/api/v1/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: nextMessages.slice(-40), conversation_id: conversationId }),
@@ -198,7 +211,7 @@ export default function App() {
             plan: data.plan ?? [],
           },
         ]);
-        const history = await fetch("/api/v1/conversations?limit=30");
+        const history = await authenticatedFetch("/api/v1/conversations?limit=30");
         if (history.ok) setConversations((await history.json()) as Conversation[]);
       }
     } catch (cause) {
@@ -248,7 +261,7 @@ export default function App() {
         setVoiceBusy(true);
         setError("");
         try {
-          const response = await fetch("/api/v1/voice/transcriptions", {
+          const response = await authenticatedFetch("/api/v1/voice/transcriptions", {
             method: "POST",
             headers: { "Content-Type": audio.type || "audio/webm" },
             body: audio,
@@ -282,7 +295,7 @@ export default function App() {
     setPlayingMessage(index);
     setError("");
     try {
-      const response = await fetch("/api/v1/voice/speech", {
+      const response = await authenticatedFetch("/api/v1/voice/speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: content }),
@@ -326,7 +339,7 @@ export default function App() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/v1/conversations/${conversationId}`);
+      const response = await authenticatedFetch(`/api/v1/conversations/${conversationId}`);
       if (!response.ok) throw new Error("Não foi possível abrir essa conversa.");
       const detail = (await response.json()) as StoredConversation;
       setCurrentConversationId(detail.id);
@@ -368,7 +381,11 @@ export default function App() {
           </div>
         </header>
 
-        <nav className="tabs" aria-label="Seções da Lia">
+        {!isLocalClient && !pairedDeviceId ? (
+          <PairingClient onPaired={setPairedDeviceId} />
+        ) : (
+          <>
+        {isLocalClient && <nav className="tabs" aria-label="Seções da Lia">
           <button
             type="button"
             className={activeTab === "chat" ? "tab active" : "tab"}
@@ -397,7 +414,7 @@ export default function App() {
           >
             Lia Dev
           </button>
-        </nav>
+        </nav>}
 
         {activeTab === "dev" ? (
           <DevPanel />
@@ -512,6 +529,8 @@ export default function App() {
                 ? "Inferência configurada para o servidor local · nenhum fallback remoto"
                 : "Inicie o núcleo Python e o servidor llama.cpp para conversar"}
             </footer>
+          </>
+        )}
           </>
         )}
       </section>

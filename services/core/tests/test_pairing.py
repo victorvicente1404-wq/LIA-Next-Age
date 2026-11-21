@@ -47,6 +47,20 @@ def test_pairing_store_approves_once_persists_hash_and_revokes(tmp_path: Path):
     assert reopened.revoke(approved["device_id"]) is False
 
 
+def test_pairing_request_status_tracks_approval_and_revocation(tmp_path: Path):
+    store = PairingStore(tmp_path / "pairing.sqlite3")
+    request = store.create_request("Celular", ["chat"])
+    request_id = request["request_id"]
+    assert store.request_status(request_id) == "pending"
+
+    approved = store.approve(request_id, request["pairing_code"])
+    assert store.request_status(request_id) == "approved"
+
+    assert store.revoke(approved["device_id"]) is True
+    assert store.request_status(request_id) == "expired"
+    assert store.request_status("0" * 32) == "expired"
+
+
 def test_pairing_code_attempt_limit_locks_request(tmp_path: Path):
     store = PairingStore(tmp_path / "pairing.sqlite3")
     request = store.create_request("Tablet", ["chat"])
@@ -116,6 +130,59 @@ def test_remote_pairing_requires_https_and_trusted_origin(tmp_path: Path):
     assert request.status_code == 201
     assert request.headers["cache-control"] == "no-store"
     assert request.json()["expires_in_seconds"] == 300
+
+
+def test_remote_device_can_check_only_its_pairing_request_status(tmp_path: Path):
+    app = build_pairing_app(tmp_path)
+    remote = TestClient(
+        app, base_url="https://lia.test", client=("192.168.1.20", 45000)
+    )
+    local = TestClient(
+        app, base_url="http://127.0.0.1", client=("127.0.0.1", 45001)
+    )
+    created = remote.post(
+        "/api/v1/pairing/requests",
+        headers={"Origin": "https://lia.test"},
+        json={"device_name": "Celular", "scopes": ["chat", "voice"]},
+    )
+    request_id = created.json()["request_id"]
+
+    pending = remote.get(
+        f"/api/v1/pairing/requests/{request_id}/status",
+        headers={"Origin": "https://lia.test"},
+    )
+    assert pending.status_code == 200
+    assert pending.json() == {"status": "pending"}
+    assert pending.headers["cache-control"] == "no-store"
+
+    approved = local.post(
+        f"/api/v1/pairing/requests/{request_id}/approve",
+        json={"pairing_code": created.json()["pairing_code"]},
+    )
+    assert approved.status_code == 200
+    status_response = remote.get(
+        f"/api/v1/pairing/requests/{request_id}/status",
+        headers={"Origin": "https://lia.test"},
+    )
+    assert status_response.json() == {"status": "approved"}
+
+    assert local.delete(
+        f"/api/v1/pairing/devices/{request_id}"
+    ).status_code == 204
+    revoked_status = remote.get(
+        f"/api/v1/pairing/requests/{request_id}/status",
+        headers={"Origin": "https://lia.test"},
+    )
+    assert revoked_status.json() == {"status": "expired"}
+
+    wrong_scheme = TestClient(
+        app, base_url="http://lia.test", client=("192.168.1.20", 45000)
+    )
+    blocked = wrong_scheme.get(
+        f"/api/v1/pairing/requests/{request_id}/status",
+        headers={"Origin": "https://lia.test"},
+    )
+    assert blocked.status_code == 403
 
 
 def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):

@@ -128,6 +128,31 @@ class PairingStore:
             "instructions": "Confirme o código no dispositivo principal antes de aprovar.",
         }
 
+    def request_status(self, request_id: str) -> str:
+        """Return only the lifecycle state for an unguessable request identifier."""
+        now = int(time.time())
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT status, expires_at FROM pairing_requests WHERE id = ?",
+                (request_id,),
+            ).fetchone()
+            if row is None:
+                return "expired"
+            if row["status"] == "pending":
+                return "pending" if row["expires_at"] >= now else "expired"
+            if row["status"] == "locked":
+                return "locked"
+            if row["status"] == "approved":
+                device = connection.execute(
+                    """
+                    SELECT 1 FROM paired_devices
+                    WHERE id = ? AND revoked_at IS NULL AND expires_at >= ?
+                    """,
+                    (request_id, now),
+                ).fetchone()
+                return "approved" if device is not None else "expired"
+        return "expired"
+
     def list_pending(self) -> list[dict[str, Any]]:
         now = int(time.time())
         with closing(self._connect()) as connection:

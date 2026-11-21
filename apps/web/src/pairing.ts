@@ -171,3 +171,47 @@ export async function createDeviceAuthHeaders(
     "X-Lia-Signature": signature,
   };
 }
+
+
+const ACTIVE_DEVICE_STORAGE_KEY = "lia-active-device-id";
+
+export function getActiveDeviceId(): string | null {
+  if (typeof localStorage === "undefined") return null;
+  const deviceId = localStorage.getItem(ACTIVE_DEVICE_STORAGE_KEY);
+  return deviceId && /^[a-f0-9]{32}$/i.test(deviceId) ? deviceId : null;
+}
+
+export function setActiveDeviceId(deviceId: string): void {
+  validateDeviceId(deviceId);
+  if (typeof localStorage === "undefined") {
+    throw new Error("O armazenamento local deste navegador não está disponível.");
+  }
+  localStorage.setItem(ACTIVE_DEVICE_STORAGE_KEY, deviceId);
+}
+
+export async function authenticatedFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const deviceId = getActiveDeviceId();
+  if (!deviceId) return fetch(input, init);
+
+  const credential = await loadDeviceCredential(deviceId);
+  if (!credential) {
+    throw new Error("A chave deste dispositivo não está disponível. Faça o pareamento novamente.");
+  }
+  const url = new URL(input instanceof Request ? input.url : input.toString(), window.location.href);
+  if (url.origin !== window.location.origin) {
+    throw new Error("A Lia bloqueou uma tentativa de enviar credenciais para outra origem.");
+  }
+  const method = (init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  const headers = new Headers(input instanceof Request ? input.headers : undefined);
+  new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+  const signed = await createDeviceAuthHeaders(
+    credential,
+    method,
+    url.pathname + url.search,
+  );
+  Object.entries(signed).forEach(([key, value]) => headers.set(key, value));
+  return fetch(input, { ...init, method, headers });
+}

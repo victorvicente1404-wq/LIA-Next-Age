@@ -359,6 +359,17 @@ def create_app(
                 status_code=403,
                 media_type="application/json",
             )
+        status_parts = path.split("/")
+        is_pairing_status = (
+            request.method == "GET"
+            and len(status_parts) == 7
+            and status_parts[1:5] == ["api", "v1", "pairing", "requests"]
+            and len(status_parts[5]) == 32
+            and all(char in "0123456789abcdef" for char in status_parts[5].lower())
+            and status_parts[6] == "status"
+        )
+        if is_pairing_status:
+            return await call_next(request)
         if path == "/api/v1/pairing/requests" and request.method == "POST":
             return await call_next(request)
         if path.startswith("/api/v1/pairing/"):
@@ -442,6 +453,20 @@ def create_app(
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
         return PairingRequestResponse(**result)
+
+    @app.get("/api/v1/pairing/requests/{request_id}/status")
+    async def get_pairing_request_status(
+        request_id: str, request: Request, response: Response
+    ) -> dict[str, str]:
+        if not config.pairing_enabled:
+            raise HTTPException(status_code=404, detail="Pareamento de dispositivos está desativado.")
+        if len(request_id) != 32 or any(char not in "0123456789abcdef" for char in request_id.lower()):
+            raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+        if not is_loopback(request) and request.url.scheme != "https":
+            raise HTTPException(status_code=403, detail="Consulta de pareamento remoto exige HTTPS.")
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        return {"status": request.app.state.pairing.request_status(request_id)}
 
     @app.get("/api/v1/pairing/requests")
     async def list_pairing_requests(request: Request) -> list[dict[str, object]]:

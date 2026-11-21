@@ -45,11 +45,12 @@ Restrinja a porta no firewall à rede/dispositivos necessários. Não use este c
 
 ## Fluxo de pareamento
 
-1. O dispositivo remoto, usando HTTPS, envia `POST /api/v1/pairing/requests` com JSON `{"device_name":"Meu celular","scopes":["chat","voice"]}`.
-2. A resposta contém `request_id`, um `pairing_code` temporário e os escopos pedidos.
+1. Abra a interface da Lia no dispositivo remoto por HTTPS. A tela de conexão envia `POST /api/v1/pairing/requests` com JSON `{"device_name":"Meu celular","scopes":["chat","voice"]}`.
+2. A resposta contém `request_id`, um `pairing_code` temporário e os escopos pedidos. O código fica somente na memória da tela até a conclusão do pareamento.
 3. No dispositivo principal, consulte `GET /api/v1/pairing/requests` por loopback. Confirme que o nome do dispositivo e o pedido são esperados.
 4. Aprove localmente com `POST /api/v1/pairing/requests/{request_id}/approve` e JSON `{"pairing_code":"CODIGO_MOSTRADO_NO_CELULAR"}`.
-5. O `request_id` passa a ser o `device_id`. O dispositivo remoto deriva uma chave HMAC de `SHA-256(pairing_code)` e guarda essa chave como não extraível no armazenamento seguro do cliente. A resposta de aprovação contém apenas metadados e nunca retorna o segredo. O código bruto não é enviado novamente depois do pareamento.
+5. No dispositivo remoto, toque em "Já aprovei — verificar". A tela consulta `GET /api/v1/pairing/requests/{request_id}/status`, endpoint que retorna somente `pending`, `approved` ou `expired`; ele não retorna nome, escopos, código ou dados do dispositivo. O identificador aleatório de 128 bits efetivos limita a possibilidade de adivinhação.
+6. Quando o estado for `approved`, o navegador deriva uma chave HMAC de `SHA-256(pairing_code)`, guarda a chave não extraível no IndexedDB e ativa o dispositivo. O código bruto não é persistido nem enviado novamente.
 6. Liste dispositivos com `GET /api/v1/pairing/devices` e revogue com `DELETE /api/v1/pairing/devices/{device_id}` a partir do dispositivo principal.
 
 A aprovação é uma ação explícita. Criar uma solicitação remota não concede acesso. O segredo de pareamento tem 256 bits de entropia, expira em cinco minutos se não for aprovado e, após aprovação, sua derivação SHA-256 é usada como chave de assinatura até a validade configurada do dispositivo.
@@ -75,7 +76,7 @@ A chave HMAC são os bytes do digest SHA-256 do `pairing_code` (não o texto hex
 
 ## Limitações desta etapa
 
-- A aba Dispositivos do frontend já lista solicitações e dispositivos, aprova códigos e revoga acessos localmente. A criação da solicitação no cliente remoto e a integração do fluxo de credenciais à experiência de chat ainda estão pendentes. O módulo `apps/web/src/pairing.ts` deriva uma chave HMAC não extraível, persiste a `CryptoKey` no IndexedDB e assina requisições.
+- A aba Dispositivos do frontend lista solicitações e dispositivos, aprova códigos e revoga acessos localmente. O cliente web remoto cria solicitações, consulta apenas o estado da própria solicitação e persiste a chave HMAC não extraível no IndexedDB. O chat e os endpoints de voz usam assinaturas HMAC por requisição.
 - O aplicativo Android ainda não implementa o cliente de pareamento.
 - Uma chave HMAC não extraível impede exportação direta pelo JavaScript, mas não impede um script malicioso na mesma origem de solicitar assinaturas. A interface final precisa de CSP rígida, dependências controladas e proteção contra XSS.
 - A leitura remota de memória só existe com o escopo opcional `memory:read`. Escrita de memória, arquivos, Git, terminal e Lia Dev não são acessíveis remotamente.
