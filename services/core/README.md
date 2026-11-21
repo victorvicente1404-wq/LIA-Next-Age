@@ -93,7 +93,7 @@ ruff check .
 
 ## Lia-owned cognitive orchestration
 
-Chat with `use_tools=true` uses `LiaOrchestrator`, owned by the Lia application and independent of the inference backend. It runs a bounded JSON decision loop (maximum four tool/model steps) over the same local model adapter. Both the direct llama.cpp HTTP adapter and the optional OpenJarvis LlamaCppEngine adapter expose this orchestration contract.
+Chat with `use_tools=true` uses `LiaOrchestrator`, owned by the Lia application and independent of the inference backend. It runs a bounded JSON decision loop (up to four decision steps plus one final synthesis request) over the same local model adapter. Both the direct llama.cpp HTTP adapter and the optional OpenJarvis LlamaCppEngine adapter expose this orchestration contract.
 
 For multi-step requests, the model may return a bounded plan (one goal and up to six short steps). Plans are descriptive intent, never authorization; every execution still passes the same tool policy. The orchestration loop permits at most four decision steps and one final synthesis request.\n\nThe current local read-only tool allowlist contains:
 - `calculator`: bounded arithmetic grammar, without `eval` or code execution.
