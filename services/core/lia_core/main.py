@@ -314,7 +314,11 @@ def create_app(
         agent_result: dict[str, object] = {}
         try:
             agent_runner = getattr(request.app.state.inference, "complete_with_agent", None)
-            if payload.use_tools and callable(agent_runner):
+            if (
+                payload.use_tools
+                and callable(agent_runner)
+                and messages[-1]["role"] == "user"
+            ):
                 agent_result = await agent_runner(
                     messages,
                     payload.temperature,
