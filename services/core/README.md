@@ -59,6 +59,10 @@ For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python
 - `GET /api/v1/dev/workspaces`: list explicitly allowed developer workspaces.
 - `GET /api/v1/dev/workspaces/{id}/files?path=...`: list a directory.
 - `GET /api/v1/dev/workspaces/{id}/file?path=...`: read a UTF-8 text file up to 256 KiB.
+- `GET /api/v1/dev/workspaces/{id}/git`: inspect branch, working-tree status, and recent commits.
+- `POST /api/v1/dev/workspaces/{id}/git/proposals`: prepare a typed branch, checkout, selected-file commit, or revert operation.
+- `POST /api/v1/dev/git/proposals/{id}/execute`: execute a reviewed Git proposal after explicit approval.
+- `DELETE /api/v1/dev/git/proposals/{id}`: cancel a Git proposal.
 
 ## Memory behavior
 
@@ -75,6 +79,8 @@ OpenJarvis's SQLite/FTS5 backend is being evaluated separately because the pinne
 ## Lia Dev
 
 Lia Dev can inspect only explicitly allowlisted workspaces. It blocks path traversal, skips symlinks in directory listings, excludes common generated directories and secret files, and rejects oversized or non-UTF-8 files. File edits are proposed as diffs and require a separate apply request; each write is atomic, checks the original file hash, and creates a persistent rollback backup.
+
+Git operations are typed and proposal-based: create a branch, switch to an existing local non-protected branch, commit explicitly selected tracked files, or revert the current non-merge commit by creating a new inverse commit. The `main` and `master` branches are protected from commits and reversions; switching to them through Lia Dev is disabled. Branch switches, branch creation, and reversions require a clean working tree. Commits exclude unrelated staged paths, reject secrets and pathspec wildcards, and verify the selected diff has not changed since review. Git hooks are disabled for these operations. All proposals expire after five minutes and are single-use.
 
 Development tasks are selected from a fixed catalog (Git status/diff, pytest, Ruff, and npm build). A proposal displays the exact command and working directory and expires after five minutes. Execution requires a separate approval request, runs without a shell, uses a restricted environment, has a 120-second timeout, captures only a bounded amount of output while continuing to drain the process pipe, and kills the process group on completion or timeout. This is not an OS/container sandbox: approved tests and builds execute project code and may modify the workspace. Do not expose the API beyond loopback until authentication and device pairing exist.
 
