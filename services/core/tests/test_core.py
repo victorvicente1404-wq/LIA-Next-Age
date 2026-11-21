@@ -190,3 +190,75 @@ def test_lia_dev_reads_only_configured_workspace(tmp_path: Path):
             params={"path": "../"},
         )
         assert traversal.status_code == 400
+
+
+
+def test_lia_dev_patch_requires_separate_apply_and_can_rollback(tmp_path: Path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    source = workspace / "main.py"
+    source.write_text("print('before')\n", encoding="utf-8")
+
+    with build_client(tmp_path, dev_workspaces=(workspace,)) as client:
+        proposal = client.post(
+            "/api/v1/dev/workspaces/workspace-1/patches",
+            json={"path": "main.py", "content": "print('after')\n"},
+        )
+        assert proposal.status_code == 201
+        proposal_data = proposal.json()
+        assert "-print('before')" in proposal_data["diff"]
+        assert "+print('after')" in proposal_data["diff"]
+        assert source.read_text(encoding="utf-8") == "print('before')\n"
+
+        applied = client.post(
+            f"/api/v1/dev/patches/{proposal_data['proposal_id']}/apply"
+        )
+        assert applied.status_code == 200
+        operation_id = applied.json()["operation_id"]
+        assert source.read_text(encoding="utf-8") == "print('after')\n"
+
+        rolled_back = client.post(
+            f"/api/v1/dev/patches/{operation_id}/rollback"
+        )
+        assert rolled_back.status_code == 200
+        assert rolled_back.json()["status"] == "rolled_back"
+        assert source.read_text(encoding="utf-8") == "print('before')\n"
+
+
+def test_lia_dev_patch_rejects_stale_proposal(tmp_path: Path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    source = workspace / "main.py"
+    source.write_text("print('before')\n", encoding="utf-8")
+
+    with build_client(tmp_path, dev_workspaces=(workspace,)) as client:
+        proposal = client.post(
+            "/api/v1/dev/workspaces/workspace-1/patches",
+            json={"path": "main.py", "content": "print('proposed')\n"},
+        ).json()
+        source.write_text("print('concurrent change')\n", encoding="utf-8")
+
+        applied = client.post(
+            f"/api/v1/dev/patches/{proposal['proposal_id']}/apply"
+        )
+        assert applied.status_code == 409
+        assert source.read_text(encoding="utf-8") == "print('concurrent change')\n"
+
+
+def test_lia_dev_patch_cannot_modify_secret_or_create_new_file(tmp_path: Path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    (workspace / ".env").write_text("TOKEN=secret", encoding="utf-8")
+
+    with build_client(tmp_path, dev_workspaces=(workspace,)) as client:
+        secret = client.post(
+            "/api/v1/dev/workspaces/workspace-1/patches",
+            json={"path": ".env", "content": "TOKEN=changed"},
+        )
+        missing = client.post(
+            "/api/v1/dev/workspaces/workspace-1/patches",
+            json={"path": "new.py", "content": "print('new')"},
+        )
+
+    assert secret.status_code == 403
+    assert missing.status_code == 404
