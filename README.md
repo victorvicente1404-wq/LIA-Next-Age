@@ -4,26 +4,29 @@ Assistente pessoal local-first, modular e extensível.
 
 ## Princípios
 
+- **Android-first:** o celular é a plataforma principal; a primeira versão utilizável deve instalar e funcionar diretamente no Android.
 - **Local-first:** conversação, memória e automações essenciais devem funcionar sem depender de créditos ou cotas de provedores de IA.
+- **PC complementar:** desktop pode executar o mesmo núcleo, mas o celular não depende de um PC ou servidor hospedado.
 - **Integrações desacopladas:** serviços externos (por exemplo, WhatsApp via Evolution API e serviços Google) são conectores opcionais, não o cérebro.
 - **Memória independente do modelo:** dados e lembranças pertencem à aplicação, com armazenamento explícito e recuperação contextual.
 - **Lia Dev:** agente de engenharia capaz de inspecionar workspaces autorizados, propor alterações revisáveis, mostrar diffs, executar testes e operar Git com aprovação.
 - **Segurança por padrão:** permissões mínimas, ações sensíveis sujeitas a aprovação, segredos fora do repositório e histórico de alterações.
 - **Evolução incremental:** módulos pequenos, contratos documentados, testes e rollback; preservar funcionalidades úteis dos projetos anteriores sem copiar acoplamentos desnecessários.
 
-## Arquitetura
+## Arquitetura-alvo
 
-1. **Interface:** aplicação web responsiva (Vite/React), utilizável no celular e no desktop.
-2. **Núcleo:** API Python para conversação, roteamento, políticas e coordenação de ferramentas.
-3. **Runtime local:** contrato de inferência da Lia com adaptadores para llama.cpp HTTP e OpenJarvis LlamaCppEngine. O motor é substituível; a orquestração pertence à Lia.
-4. **Histórico e memória:** histórico de conversas em SQLite separado da memória de longo prazo; memória independente do modelo, com gerenciamento explícito, validação e recuperação contextual limitada a cinco itens por turno.
-5. **Lia Dev:** interface de exploração, leitura de workspaces autorizados, propostas de patch com diff, tarefas predefinidas e operações Git tipadas; escritas e execuções exigem aprovação explícita, verificação contra alterações concorrentes e rollback quando aplicável. Propostas pendentes expiram e são de uso único.
-6. **Percepção e voz:** módulos opcionais para áudio, câmera e contexto, sempre com indicadores e consentimento.
-7. **Conectores:** adaptadores independentes para WhatsApp, Google e dispositivos domésticos.
+1. **Aplicativo Android nativo (principal):** interface, voz, permissões, notificações, integração com recursos do aparelho e ciclo de vida dos serviços. Kotlin/Android APIs; Compose é a direção preferida.
+2. **Núcleo compartilhado da Lia:** identidade, políticas, orquestração, memória, histórico, ferramentas e Lia Dev. Não deve depender de navegador, Termux ou PC.
+3. **Inferência local:** contrato substituível com llama.cpp como backend suportado. No Android, avaliar runtime nativo/NDK versus llama-server no Termux; sem fallback remoto silencioso.
+4. **Termux opcional:** ponte de desenvolvimento e runtime inicial sem Ubuntu, Debian, proot ou outra distribuição Linux. Não é a experiência final obrigatória.
+5. **PC complementar:** reutiliza os contratos e a lógica central, com launcher, interface e runtime locais próprios.
+6. **Dados e conectores:** SQLite e armazenamento local; Google, WhatsApp e casa inteligente como integrações independentes e autorizadas.
+
+A arquitetura e a sequência estão detalhadas em [Android-first](docs/ANDROID_FIRST.md).
 
 ## Política de provedores
 
-O modelo local é o padrão. Provedores remotos podem ser configurados voluntariamente como opção, mas nunca devem ser acionados silenciosamente nem ser requisito para o funcionamento básico. A API de chat informa qual motor local respondeu e mantém `external_traffic: false`.
+O modelo local é o padrão. Provedores remotos podem ser configurados voluntariamente como opção, mas nunca devem ser acionados silenciosamente nem ser requisito para o funcionamento básico. A API de chat informa qual motor local respondeu e mantém external_traffic: false.
 
 ## Segurança
 
@@ -33,33 +36,32 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - Exibir o plano e o diff antes de gravar alterações.
 - Exigir aprovação para escrita, instalação de dependências, execução de comandos e acesso a dados sensíveis.
 - Registrar ações e permitir desfazer alterações sempre que possível.
-- A interface e Lia Dev permanecem locais por padrão. A API de pareamento remoto é opt-in, exige HTTPS, aprovação local, escopos mínimos, assinatura com nonce de uso único e revogação; a integração de cliente ainda está pendente. Consulte [o protocolo de pareamento](docs/DEVICE_PAIRING.md).
-- Lia Dev só enxerga pastas adicionadas explicitamente à allowlist `LIA_DEV_WORKSPACES`; leitura de arquivos de segredos é bloqueada.
+- A interface e Lia Dev permanecem locais por padrão. A API de pareamento remoto é opt-in, exige HTTPS, aprovação local, escopos mínimos, assinatura com nonce de uso único e revogação; a integração de cliente ainda não foi validada em Android. Consulte [o protocolo de pareamento](docs/DEVICE_PAIRING.md).
+- Lia Dev só enxerga pastas adicionadas explicitamente à allowlist LIA_DEV_WORKSPACES; leitura de arquivos de segredos é bloqueada.
+- Recursos de Android usam permissões e APIs oficiais do sistema. Acesso por Acessibilidade é opcional e exige ativação manual; não há promessa de controle irrestrito do sistema.
 
-## Progresso
+## Progresso da fundação atual
 
 - [x] Monorepo inicial e regras de engenharia.
-- [x] Interface web com chat, gerenciador de memória e painel Lia Dev.
+- [x] Interface web responsiva com chat, gerenciador de memória e painel Lia Dev.
 - [x] API Python e health check.
-- [x] Adaptador direto local para llama.cpp.
-- [x] Adaptador opcional para OpenJarvis LlamaCppEngine, selecionável por configuração.
+- [x] Adaptadores locais para llama.cpp e OpenJarvis LlamaCppEngine.
 - [x] Memória SQLite independente do modelo, gerenciamento explícito e recuperação contextual.
-- [x] Histórico persistente de conversas em SQLite separado da memória, com sessões, restauração, paginação e exclusão.
-- [x] Lia Dev com operações Git tipadas, prévia e aprovação separada, proteção de `main`/`master` e reversão sem reescrever histórico.
-- [x] Lia Dev: listar workspaces autorizados, navegar pastas e ler arquivos de texto com limites.
+- [x] Histórico persistente de conversas em SQLite separado da memória.
+- [x] Lia Dev com workspaces allowlisted, leitura controlada, patches revisáveis, tarefas predefinidas e operações Git tipadas com aprovação.
 - [x] CI: testes Python, Ruff e build web.
-- [x] Lia Dev: proposta de patch com diff, aprovação em endpoint separado, verificação de versão, escrita atômica e backup para rollback.
-- [x] Lia Dev: tarefas tipadas e predefinidas (Git status/diff, pytest, Ruff e build web), com prévia, aprovação separada, timeout e saída limitada.
-- [x] Lia Dev: operações Git tipadas (branch, commit, checkout e revert) com revisão e aprovação.
-- [x] Primeira camada de voz local: captura manual no navegador, STT whisper.cpp local e TTS Piper opcional, sem fallback remoto (validação Android ainda pendente).
-- [x] API inicial de pareamento: aprovação local, HTTPS obrigatório para acesso remoto, escopos chat/voz e leitura de memória opcional, digest secreto armazenado como hash, revogação, assinatura HMAC com nonce anti-replay e proteção de origem. O helper web persiste uma CryptoKey não extraível no IndexedDB, e a aba Dispositivos já permite aprovar e revogar localmente; a solicitação remota e o cliente Android ainda pendentes.
-- [ ] Integrar percepção e conectores opcionais.
-- [x] Primeira versão do orquestrador cognitivo próprio da Lia, com loop limitado e ferramentas locais allowlisted; OpenJarvis opcional como runtime.
-- [x] Perfis especialistas subordinados ao mesmo orquestrador (geral, memória e engenharia), com allowlists específicas e sem modelos ou memórias separados.
-- [ ] Definir e validar o ambiente de execução quando a fundação estiver pronta (sem exigir Termux nesta etapa).
+- [x] Primeira camada de voz local via navegador, whisper.cpp e Piper (mocks/fakes na CI; runtime real no Android ainda não validado).
+- [x] API inicial de pareamento e helper web com HMAC, nonce anti-replay, escopos e revogação (sem validação ponta a ponta em Android).
+- [x] Orquestrador próprio da Lia, com loop limitado e ferramentas locais allowlisted.
+- [x] Perfis especialistas subordinados ao mesmo orquestrador.
+- [x] Decisão de produto Android-first documentada.
+- [ ] Revisão final de segurança e concorrência da Lia Dev.
+- [ ] Cliente Android nativo, armazenamento de credenciais via Android Keystore e ponte local com o núcleo.
+- [ ] Runtime de inferência e voz validados em dispositivo Android real.
+- [ ] Integrações Android (notificações, arquivos, câmera, acessibilidade opcional e automações) implementadas uma por uma com permissões explícitas.
+- [ ] Validar desktop como plataforma complementar.
+- [ ] Integração final da fundação após revisão e testes.
 
-## Rodar localmente
+## Estado do repositório
 
-Consulte [o guia Android/Termux](docs/ANDROID_TERMUX.md), [o guia do núcleo](services/core/README.md) e [as decisões de integração OpenJarvis](docs/DECISIONS.md).
-
-Este repositório é a nova base da Lia. O branch `foundation/bootstrap` concentra o desenvolvimento ativo. Consulte a comparação entre branches antes de integrar novas etapas.
+A branch foundation/bootstrap concentra o desenvolvimento ativo. A main não deve receber esta fundação até que a revisão e os testes exigidos estejam concluídos. Consulte a [comparação de branches](https://github.com/victorvicente1404-wq/LIA-Next-Age/compare/main...foundation/bootstrap) e o [PR #5](https://github.com/victorvicente1404-wq/LIA-Next-Age/pull/5).
