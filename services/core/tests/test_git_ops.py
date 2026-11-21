@@ -203,6 +203,49 @@ def test_git_commit_detects_changes_before_truncated_diff_prefix(tmp_path: Path)
 
 
 
+def test_git_commit_uses_approved_snapshot_if_worktree_changes_after_staging(
+    tmp_path: Path, monkeypatch
+):
+    from lia_core.dev.git_ops import GitOperationManager
+
+    workspace = tmp_path / "project"
+    make_repo(workspace)
+    app_file = workspace / "README.md"
+    app_file.write_text("conteúdo aprovado\\n", encoding="utf-8")
+    git(workspace, "switch", "-c", "feature/snapshot-race")
+    with client_for(tmp_path, workspace) as client:
+        proposal = client.post(
+            "/api/v1/dev/workspaces/workspace-1/git/proposals",
+            json={
+                "action": "commit",
+                "message": "commit reviewed snapshot",
+                "paths": ["README.md"],
+            },
+        )
+        assert proposal.status_code == 201
+        proposal_id = proposal.json()["proposal_id"]
+
+        original_run = GitOperationManager._run
+        changed = False
+
+        def mutate_after_stage(self, root, *arguments, **kwargs):
+            nonlocal changed
+            result = original_run(self, root, *arguments, **kwargs)
+            if arguments and arguments[0] == "add" and kwargs.get("env_overrides") and not changed:
+                changed = True
+                app_file.write_text("conteúdo não aprovado\\n", encoding="utf-8")
+            return result
+
+        monkeypatch.setattr(GitOperationManager, "_run", mutate_after_stage)
+        executed = client.post(f"/api/v1/dev/git/proposals/{proposal_id}/execute")
+
+    assert executed.status_code == 200
+    assert changed is True
+    assert git(workspace, "show", "HEAD:README.md") == "conteúdo aprovado"
+    assert app_file.read_text(encoding="utf-8") == "conteúdo não aprovado\\n"
+    assert "README.md" in git(workspace, "status", "--short")
+
+
 def test_git_commit_rejects_environment_variants_but_allows_example_template(tmp_path: Path):
     workspace = tmp_path / "project"
     make_repo(workspace)
