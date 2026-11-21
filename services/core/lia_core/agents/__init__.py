@@ -11,8 +11,8 @@ from lia_core.agents.tools import build_default_registry
 
 __all__ = [
     "GENERAL_PROFILE",
-    "LiaOrchestrator",
     "SPECIALIST_PROFILES",
+    "LiaOrchestrator",
     "SpecialistProfile",
     "ToolPolicy",
     "ToolRegistry",
