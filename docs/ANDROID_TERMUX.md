@@ -48,12 +48,15 @@ cd LIA-Next-Age/services/core
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
+export LIA_RUNTIME_BACKEND=auto
 export LIA_LLM_BASE_URL=http://127.0.0.1:8080/v1
 export LIA_LLM_MODEL=local-model
 export LIA_DATA_DIR="$HOME/.lia"
 export LIA_DEV_WORKSPACES="$HOME/projects/LIA-Next-Age"
 uvicorn lia_core.main:app --host 127.0.0.1 --port 8000
 ```
+
+Com `auto`, a Lia usa OpenJarvis `LlamaCppEngine` se o pacote estiver instalado nesse ambiente Python; caso contrário, usa o adaptador HTTP direto de llama.cpp. Para forçar o adaptador direto, defina `LIA_RUNTIME_BACKEND=llama.cpp`. Nenhuma opção aciona provedores de IA na nuvem.
 
 Ajuste `LIA_DEV_WORKSPACES` para o caminho real do repositório no seu aparelho. Essa allowlist dá à Lia Dev permissão somente de leitura para navegar e abrir arquivos desse projeto. Separe várias pastas com `:` no Linux/Termux.
 
@@ -80,8 +83,8 @@ A interface consulta o núcleo pela proxy local do Vite. O serviço Python fica 
 - O indicador da interface deve mostrar que o núcleo está conectado.
 - Envie uma mensagem curta.
 - Se o modelo não estiver ativo, a API retorna erro explícito; ela não tenta Groq, Gemini, OpenRouter ou outro serviço remoto.
-- Memórias explícitas ficam no SQLite dentro de `$HOME/.lia`.
-- Os workspaces configurados aparecem em `GET /api/v1/dev/workspaces`; a API de Lia Dev permite listar pastas e ler arquivos de texto.
+- Memórias explícitas ficam no SQLite dentro de `$HOME/.lia` e podem ser gerenciadas na aba Memória.
+- A aba Lia Dev lista os workspaces configurados e permite abrir arquivos de texto em modo somente leitura.
 
 ## Segurança e limites desta etapa
 
