@@ -196,3 +196,36 @@ def test_git_commit_detects_changes_before_truncated_diff_prefix(tmp_path: Path)
     assert git(workspace, "rev-parse", "HEAD") == reviewed_head
     assert "app.py" in git(workspace, "status", "--short")
 
+
+
+def test_git_commit_rejects_environment_variants_but_allows_example_template(tmp_path: Path):
+    workspace = tmp_path / "project"
+    make_repo(workspace)
+    names = [".env.local", ".env.production", ".envrc", ".env.example"]
+    for name in names:
+        (workspace / name).write_text("SETTING=value\\n", encoding="utf-8")
+    git(workspace, "add", *names)
+    git(workspace, "commit", "-m", "add environment examples")
+    git(workspace, "switch", "-c", "feature/env-protection")
+    for name in names:
+        (workspace / name).write_text("SETTING=changed\\n", encoding="utf-8")
+
+    with client_for(tmp_path, workspace) as client:
+        rejected = [
+            client.post(
+                "/api/v1/dev/workspaces/workspace-1/git/proposals",
+                json={"action": "commit", "message": "must block", "paths": [name]},
+            )
+            for name in names[:-1]
+        ]
+        example = client.post(
+            "/api/v1/dev/workspaces/workspace-1/git/proposals",
+            json={
+                "action": "commit",
+                "message": "update safe template",
+                "paths": [".env.example"],
+            },
+        )
+
+    assert all(response.status_code == 400 for response in rejected)
+    assert example.status_code == 201
