@@ -70,6 +70,7 @@ def test_chat_uses_injected_local_model(tmp_path: Path):
         "external_traffic": False,
         "memories_used": 0,
         "agent": "simple",
+        "specialist": "general",
         "tool_calls": 0,
         "agent_turns": 1,
         "plan": [],
