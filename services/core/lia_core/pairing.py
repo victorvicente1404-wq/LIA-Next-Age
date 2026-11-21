@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import hmac
 import secrets
 import sqlite3
 import time
@@ -29,6 +30,8 @@ class PairingStore:
     ) -> None:
         self._path = database_path
         self._path.parent.mkdir(parents=True, exist_ok=True)
+        if not 60 <= token_ttl_seconds <= 365 * 24 * 60 * 60:
+            raise ValueError("Pairing token lifetime must be between 60 seconds and one year.")
         self._token_ttl = token_ttl_seconds
         with self._connect() as connection:
             connection.executescript(
@@ -54,6 +57,12 @@ class PairingStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_pairing_requests_status
                     ON pairing_requests(status, expires_at);
+                CREATE TABLE IF NOT EXISTS used_request_nonces (
+                    device_id TEXT NOT NULL,
+                    nonce TEXT NOT NULL,
+                    expires_at INTEGER NOT NULL,
+                    PRIMARY KEY (device_id, nonce)
+                );
                 """
             )
 
@@ -217,6 +226,46 @@ class PairingStore:
             "scopes": frozenset(row["scopes"].split()),
             "expires_at": row["expires_at"],
         }
+
+    def verify_request_signature(
+        self,
+        device: dict[str, Any],
+        token: str,
+        method: str,
+        path_and_query: str,
+        timestamp: str,
+        nonce: str,
+        signature: str,
+    ) -> bool:
+        try:
+            issued_at = int(timestamp)
+        except (TypeError, ValueError):
+            return False
+        now = int(time.time())
+        if abs(now - issued_at) > 60 or not 16 <= len(nonce) <= 128:
+            return False
+        message = "\\n".join(
+            [method.upper(), path_and_query, timestamp, nonce]
+        ).encode("utf-8")
+        expected = hmac.new(token.encode("utf-8"), message, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, signature.lower()):
+            return False
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM used_request_nonces WHERE expires_at < ?",
+                (now,),
+            )
+            try:
+                connection.execute(
+                    "INSERT INTO used_request_nonces (device_id, nonce, expires_at) VALUES (?, ?, ?)",
+                    (device["device_id"], nonce, now + 120),
+                )
+            except sqlite3.IntegrityError:
+                connection.rollback()
+                return False
+            connection.commit()
+        return True
 
     def revoke(self, device_id: str) -> bool:
         with self._connect() as connection:
