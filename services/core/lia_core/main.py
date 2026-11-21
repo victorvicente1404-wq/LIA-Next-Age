@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
 from lia_core.config import Settings
+from lia_core.dev.patches import PatchConflict, PatchManager, PatchNotFound
 from lia_core.dev.workspaces import (
     SensitiveWorkspaceFile,
     UnsafeWorkspacePath,
@@ -86,6 +87,36 @@ class WorkspaceFileContent(BaseModel):
     size: int
 
 
+class DevPatchRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=1000)
+    content: str = Field(max_length=256 * 1024)
+
+
+class DevPatchProposal(BaseModel):
+    proposal_id: str
+    workspace_id: str
+    path: str
+    original_sha256: str
+    diff: str
+    created_at: str
+    status: str
+
+
+class DevPatchApplied(BaseModel):
+    operation_id: str
+    path: str
+    applied_sha256: str
+    status: str
+
+
+class DevRollbackResponse(BaseModel):
+    rollback_id: str
+    path: str
+    restored_sha256: str
+    status: str
+    previous_version_backup: str
+
+
 def create_app(
     settings: Settings | None = None,
     inference: ChatEngine | None = None,
@@ -96,6 +127,7 @@ def create_app(
     app.state.inference = inference or create_inference_client(config)
     app.state.memory = MemoryStore(memory_path or config.data_dir / "memory.sqlite3")
     app.state.workspaces = WorkspaceRegistry(config.dev_workspaces)
+    app.state.patches = PatchManager(app.state.workspaces, config.data_dir / "dev-backups")
     app.state.inference_configured = bool(config.llm_base_url)
 
     @app.get("/health", response_model=HealthResponse)
@@ -216,6 +248,85 @@ def create_app(
         except UnsupportedTextFile as exc:
             raise HTTPException(status_code=415, detail="Arquivo não é texto UTF-8 compatível.") from exc
         return WorkspaceFileContent(**item)
+
+
+    @app.post(
+        "/api/v1/dev/workspaces/{workspace_id}/patches",
+        response_model=DevPatchProposal,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def propose_workspace_patch(
+        workspace_id: str, payload: DevPatchRequest, request: Request
+    ) -> DevPatchProposal:
+        try:
+            result = request.app.state.patches.propose(
+                workspace_id, payload.path, payload.content
+            )
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+        except UnsafeWorkspacePath as exc:
+            raise HTTPException(status_code=400, detail="Caminho fora do workspace.") from exc
+        except WorkspaceItemNotFound as exc:
+            raise HTTPException(status_code=404, detail="Arquivo não encontrado.") from exc
+        except SensitiveWorkspaceFile as exc:
+            raise HTTPException(status_code=403, detail="Alteração deste arquivo bloqueada por segurança.") from exc
+        except WorkspaceFileTooLarge as exc:
+            raise HTTPException(status_code=413, detail="Arquivo excede o limite de 256 KiB.") from exc
+        except UnsupportedTextFile as exc:
+            raise HTTPException(status_code=415, detail="Arquivo não é texto UTF-8 compatível.") from exc
+        return DevPatchProposal(**result)
+
+    @app.post(
+        "/api/v1/dev/patches/{proposal_id}/apply",
+        response_model=DevPatchApplied,
+    )
+    async def apply_workspace_patch(proposal_id: str, request: Request) -> DevPatchApplied:
+        try:
+            result = request.app.state.patches.apply(proposal_id)
+        except PatchNotFound as exc:
+            raise HTTPException(status_code=404, detail="Proposta não encontrada ou já utilizada.") from exc
+        except PatchConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="O arquivo mudou desde a proposta. Releia o arquivo e gere um novo diff.",
+            ) from exc
+        except (WorkspaceNotFound, WorkspaceItemNotFound) as exc:
+            raise HTTPException(status_code=404, detail="Workspace ou arquivo não encontrado.") from exc
+        except UnsafeWorkspacePath as exc:
+            raise HTTPException(status_code=400, detail="Caminho fora do workspace.") from exc
+        except SensitiveWorkspaceFile as exc:
+            raise HTTPException(status_code=403, detail="Alteração bloqueada por segurança.") from exc
+        except WorkspaceFileTooLarge as exc:
+            raise HTTPException(status_code=413, detail="Arquivo excede o limite de 256 KiB.") from exc
+        except UnsupportedTextFile as exc:
+            raise HTTPException(status_code=415, detail="Arquivo não é texto UTF-8 compatível.") from exc
+        return DevPatchApplied(**result)
+
+    @app.post(
+        "/api/v1/dev/patches/{operation_id}/rollback",
+        response_model=DevRollbackResponse,
+    )
+    async def rollback_workspace_patch(operation_id: str, request: Request) -> DevRollbackResponse:
+        try:
+            result = request.app.state.patches.rollback(operation_id)
+        except PatchNotFound as exc:
+            raise HTTPException(status_code=404, detail="Operação ou backup não encontrado.") from exc
+        except PatchConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="O arquivo mudou depois da aplicação. O rollback foi bloqueado para preservar as alterações atuais.",
+            ) from exc
+        except (WorkspaceNotFound, WorkspaceItemNotFound) as exc:
+            raise HTTPException(status_code=404, detail="Workspace ou arquivo não encontrado.") from exc
+        except UnsafeWorkspacePath as exc:
+            raise HTTPException(status_code=400, detail="Caminho fora do workspace.") from exc
+        except SensitiveWorkspaceFile as exc:
+            raise HTTPException(status_code=403, detail="Rollback bloqueado por segurança.") from exc
+        except WorkspaceFileTooLarge as exc:
+            raise HTTPException(status_code=413, detail="Arquivo excede o limite de 256 KiB.") from exc
+        except UnsupportedTextFile as exc:
+            raise HTTPException(status_code=415, detail="Arquivo não é texto UTF-8 compatível.") from exc
+        return DevRollbackResponse(**result)
 
     return app
 
