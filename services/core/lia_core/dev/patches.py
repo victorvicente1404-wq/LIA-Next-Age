@@ -12,8 +12,8 @@ from pathlib import Path
 from lia_core.dev.workspaces import (
     MAX_FILE_BYTES,
     SensitiveWorkspaceFile,
-    UnsupportedTextFile,
     UnsafeWorkspacePath,
+    UnsupportedTextFile,
     WorkspaceFileTooLarge,
     WorkspaceItemNotFound,
     WorkspaceRegistry,
@@ -125,7 +125,7 @@ class PatchManager:
             original_content = operation.backup_path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise PatchNotFound(operation_id) from exc
-        backup_path, restored_sha = self._replace(
+        _backup_path, restored_sha = self._replace(
             operation.workspace_id,
             operation.path,
             operation.applied_sha256,
