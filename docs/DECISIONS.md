@@ -139,3 +139,19 @@
 - Origens não locais continuam classificadas como remotas mesmo quando chegam por um proxy local, reduzindo o risco de DNS rebinding/proxy bypass. Origens locais de navegador são validadas contra a allowlist quando o pareamento está ativo.
 - O protocolo e o backend têm testes automatizados. A interface de aprovação, armazenamento protegido do token no cliente, integração Android, certificados reais e configuração de firewall ainda não foram validados. Não habilitar acesso remoto em produção até concluir esses itens.
 
+
+
+## ADR-009 — Android como plataforma principal
+
+**Decisão:** a Lia será Android-first. O primeiro produto utilizável deve ser um aplicativo instalável que funcione diretamente no celular, sem exigir PC, servidor hospedado, distribuição Linux ou cotas de IA na nuvem. PC é uma plataforma complementar.
+
+**Responsabilidades:**
+- O aplicativo Android nativo será dono da interface principal, permissões, voz, notificações, integrações do sistema e ciclo de vida de serviços.
+- O núcleo compartilhado continuará dono da identidade, políticas, orquestração, memória, histórico, ferramentas e Lia Dev; ele não pode pressupor que roda em Termux, navegador ou PC.
+- llama.cpp continua como backend local suportado. Será avaliado um runtime Android nativo/NDK contra llama-server no Termux, medindo RAM, temperatura, bateria e ciclo de vida antes de escolher o caminho definitivo.
+- Termux é uma ponte opcional para desenvolvimento e protótipo, sem exigir Ubuntu, Debian, proot ou outra distribuição Linux. A experiência final não exigirá que o usuário opere terminal.
+- Desktop reutilizará os mesmos contratos e lógica, sem se tornar servidor obrigatório para o celular.
+
+**Permissões Android:** usar APIs oficiais e o menor privilégio possível. Notificações exigem acesso de listener concedido pelo usuário; interação ampla com UI pode usar Accessibility Service opcional, ativado manualmente e explicado; câmera, microfone e localização usam permissões adequadas; arquivos usam Storage Access Framework/scoped storage; tarefas em segundo plano respeitam WorkManager/foreground service e as restrições do Android. Não prometer controle irrestrito de outros apps ou configurações protegidas.
+
+**Consequências:** o repositório ainda não contém módulo Android nativo. A implementação começa após concluir a revisão da fundação atual e definir contratos de plataforma. A documentação de arquitetura está em docs/ANDROID_FIRST.md. A fundação Python/web continua aproveitável como núcleo e protótipo, não como produto Android final.
