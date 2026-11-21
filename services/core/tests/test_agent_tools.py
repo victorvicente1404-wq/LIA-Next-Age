@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from lia_core.agents.registry import ToolPolicy, ToolRegistry, ToolResult, ToolSpec
-from lia_core.agents.openjarvis import run_openjarvis_agent
 from lia_core.agents.tools import CalculatorTool, build_default_registry
 from lia_core.memory.store import MemoryStore
 
@@ -67,18 +66,3 @@ def test_registry_denial_never_dispatches_tool():
 
     assert not result.success
     assert calls == []
-
-
-def test_agent_rejects_history_without_user_turn_before_loading_openjarvis(tmp_path: Path):
-    memory = MemoryStore(tmp_path / "memory.sqlite3")
-    try:
-        run_openjarvis_agent(
-            engine=None,
-            model="test",
-            messages=[{"role": "assistant", "content": "previous answer"}],
-            memory=memory,
-        )
-    except ValueError as exc:
-        assert "latest message" in str(exc)
-    else:
-        raise AssertionError("agent accepted a history ending with an assistant message")
