@@ -11,6 +11,7 @@ class Settings:
     llm_model: str
     data_dir: Path
     dev_workspaces: tuple[Path, ...] = ()
+    runtime_backend: str = "auto"
     request_timeout_seconds: float = 120.0
 
     @classmethod
@@ -26,5 +27,6 @@ class Settings:
             llm_model=os.getenv("LIA_LLM_MODEL", "local-model"),
             data_dir=Path(os.getenv("LIA_DATA_DIR", str(Path.home() / ".lia"))).expanduser(),
             dev_workspaces=workspaces,
+            runtime_backend=os.getenv("LIA_RUNTIME_BACKEND", "auto").strip().lower(),
             request_timeout_seconds=float(os.getenv("LIA_LLM_TIMEOUT", "120")),
         )
