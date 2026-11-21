@@ -155,3 +155,19 @@
 **Permissões Android:** usar APIs oficiais e o menor privilégio possível. Notificações exigem acesso de listener concedido pelo usuário; interação ampla com UI pode usar Accessibility Service opcional, ativado manualmente e explicado; câmera, microfone e localização usam permissões adequadas; arquivos usam Storage Access Framework/scoped storage; tarefas em segundo plano respeitam WorkManager/foreground service e as restrições do Android. Não prometer controle irrestrito de outros apps ou configurações protegidas.
 
 **Consequências:** o repositório ainda não contém módulo Android nativo. A implementação começa após concluir a revisão da fundação atual e definir contratos de plataforma. A documentação de arquitetura está em docs/ANDROID_FIRST.md. A fundação Python/web continua aproveitável como núcleo e protótipo, não como produto Android final.
+
+
+## ADR-010 — Contratos neutros de plataforma para Android-first
+
+**Decisão:** antes de criar o cliente Android nativo, Lia define contratos versionados e independentes de transporte para inferência, ciclo de vida do modelo, histórico, memória, áudio, permissões, execução de ferramentas e ponte local.
+
+**Regras:**
+- Kotlin/Android e Python podem ter implementações internas diferentes, mas preservam os mesmos schemas, estados, limites e semântica.
+- Chamadas in-process são preferidas. Uma ponte HTTP local só existe quando o runtime precisa de isolamento, vinculada a loopback, com segredo de sessão curto e allowlist estrita.
+- Inferência local é padrão e declara explicitamente tráfego externo. Falha local não aciona nuvem silenciosamente.
+- Histórico e memória permanecem separados. Memórias são explícitas e nunca viram instruções executáveis.
+- Permissões são consultadas por capacidade estreita; concessão de permissão não substitui aprovação de ação sensível.
+- Ferramentas de escrita usam proposta expirada, prévia legível e aprovação separada. Lia Dev continua uma superfície de confiança superior e isolada do chat comum.
+- Os contratos exigem fixtures e testes compartilhados entre implementações.
+
+**Consequências:** a implementação Android pode evoluir sem duplicar decisões de produto ou depender do navegador/Termux. O contrato não significa que runtime Android, Keystore, voz nativa ou JNI já estejam implementados. O documento normativo está em [PLATFORM_CONTRACTS.md](PLATFORM_CONTRACTS.md).
