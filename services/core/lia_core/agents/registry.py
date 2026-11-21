@@ -67,5 +67,5 @@ class ToolRegistry:
             return tool.execute(**arguments)
         except (TypeError, ValueError) as exc:
             return ToolResult(name, f"Argumentos inválidos: {exc}", False)
-        except Exception:
+        except Exception:  # noqa: BLE001 - isolate tool failures from the agent loop
             return ToolResult(name, "A ferramenta falhou; detalhes internos foram ocultados.", False)
