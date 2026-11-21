@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass
@@ -51,7 +52,11 @@ class GitOperationManager:
         self._git = shutil.which("git")
 
     def _run(
-        self, root: Path, *arguments: str, check: bool = True
+        self,
+        root: Path,
+        *arguments: str,
+        check: bool = True,
+        env_overrides: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if not self._git:
             raise GitOperationError("Git não está instalado neste ambiente.")
@@ -136,6 +141,53 @@ class GitOperationManager:
                     "Um arquivo mudou enquanto sua impressão digital era calculada."
                 )
         return digest.hexdigest()
+
+    def _stage_commit_snapshot(
+        self, root: Path, paths: list[str], head: str
+    ) -> tuple[str, str]:
+        """Fingerprint an isolated Git index and return its immutable tree."""
+        with tempfile.TemporaryDirectory(prefix="lia-git-index-") as temporary:
+            index_env = {"GIT_INDEX_FILE": str(Path(temporary) / "index")}
+            self._run(root, "read-tree", head, env_overrides=index_env)
+            self._run(root, "add", "--", *paths, env_overrides=index_env)
+            staged = self._run(
+                root, "ls-files", "--stage", "-z", "--", *paths,
+                env_overrides=index_env,
+            ).stdout
+            records = [record for record in staged.split("\0") if record]
+            if len(records) != len(paths):
+                raise GitOperationError(
+                    "Não foi possível criar um snapshot completo dos arquivos selecionados."
+                )
+            entries: dict[str, tuple[str, str]] = {}
+            for record in records:
+                try:
+                    metadata, relative = record.split("\t", 1)
+                    mode, object_id, stage = metadata.split()
+                except ValueError as exc:
+                    raise GitOperationError("O índice Git retornou uma entrada inválida.") from exc
+                if stage != "0" or mode not in {"100644", "100755"}:
+                    raise GitOperationError(
+                        "Somente arquivos regulares sem conflitos podem entrar em commits."
+                    )
+                entries[relative] = (mode, object_id)
+            if set(entries) != set(paths):
+                raise GitOperationError(
+                    "O snapshot Git não corresponde aos caminhos aprovados."
+                )
+            digest = hashlib.sha256()
+            for relative in sorted(paths):
+                mode, object_id = entries[relative]
+                digest.update(relative.encode("utf-8"))
+                digest.update(b"\0")
+                digest.update(mode.encode("ascii"))
+                digest.update(b"\0")
+                digest.update(object_id.encode("ascii"))
+                digest.update(b"\0")
+            tree = self._run(root, "write-tree", env_overrides=index_env).stdout.strip()
+            if not re.fullmatch(r"[0-9a-f]{40,64}", tree):
+                raise GitOperationError("O Git não produziu uma árvore válida para o commit.")
+            return digest.hexdigest(), tree
 
     def _purge(self) -> None:
         now = time.monotonic()
@@ -265,7 +317,7 @@ class GitOperationManager:
                 raise GitOperationError("Os arquivos selecionados não têm alterações para commit.")
             if diff_status.returncode != 1:
                 raise GitOperationError("Não foi possível inspecionar os arquivos selecionados.")
-            fingerprint = self._fingerprint_files(root, paths)
+            fingerprint, _ = self._stage_commit_snapshot(root, paths, head)
             normalized = {"message": message, "paths": paths}
             preview = (
                 f"Commit na branch '{branch}'\nMensagem: {message}\n"
@@ -328,11 +380,20 @@ class GitOperationManager:
             raise GitOperationError("O workspace deixou de estar limpo. Operação cancelada.")
         if proposal.action == "commit":
             paths = proposal.parameters["paths"]
-            current_fingerprint = self._fingerprint_files(root, paths)
+            current_fingerprint, tree = self._stage_commit_snapshot(
+                root, paths, head
+            )
             if current_fingerprint != proposal.fingerprint:
                 raise GitOperationError("Os arquivos mudaram desde a revisão. Gere um novo commit proposto.")
+            commit_sha = self._run(
+                root, "commit-tree", tree, "-p", head,
+                "-m", proposal.parameters["message"],
+            ).stdout.strip()
+            if not re.fullmatch(r"[0-9a-f]{40,64}", commit_sha):
+                raise GitOperationError("O Git não produziu um commit válido.")
             result = self._run(
-                root, "commit", "--only", "-m", proposal.parameters["message"], "--", *paths
+                root, "update-ref",
+                f"refs/heads/{proposal.branch}", commit_sha, head,
             )
         elif proposal.action == "create_branch":
             result = self._run(root, "switch", "-c", proposal.parameters["branch"])
@@ -350,7 +411,10 @@ class GitOperationManager:
         return {
             "action": proposal.action,
             "success": True,
-            "output": result.stdout[-MAX_OUTPUT:],
+            "output": (
+                f"Commit criado: {commit_sha}" if proposal.action == "commit"
+                else result.stdout[-MAX_OUTPUT:]
+            ),
             "branch": new_branch,
             "head": new_head,
             "clean": not bool(new_status.strip()),
