@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
+import hmac
 import ipaddress
+import time
 from typing import Literal, Protocol
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
@@ -288,6 +291,7 @@ def create_app(
     app.state.tasks = TaskRunner(app.state.workspaces)
     app.state.git_operations = GitOperationManager(app.state.workspaces)
     app.state.inference_configured = bool(config.llm_base_url)
+    app.state.pairing_rate_limits = {}
     app.state.pairing = PairingStore(
         config.data_dir / "pairing.sqlite3",
         token_ttl_seconds=config.pairing_token_ttl_seconds,
@@ -339,7 +343,7 @@ def create_app(
         required_scope = "chat"
         if path.startswith("/api/v1/voice/"):
             required_scope = "voice"
-        elif path.startswith("/api/v1/memories/"):
+        elif path == "/api/v1/memories" or path.startswith("/api/v1/memories/"):
             required_scope = "memory:write" if request.method in {"POST", "DELETE", "PUT", "PATCH"} else "memory:read"
         authorization = request.headers.get("authorization", "")
         scheme, _, token = authorization.partition(" ")
@@ -364,6 +368,20 @@ def create_app(
                 status_code=403,
                 media_type="application/json",
             )
+        timestamp = request.headers.get("x-lia-timestamp", "")
+        nonce = request.headers.get("x-lia-nonce", "")
+        signature = request.headers.get("x-lia-signature", "")
+        path_and_query = request.url.path
+        if request.url.query:
+            path_and_query += "?" + request.url.query
+        if not request.app.state.pairing.verify_request_signature(
+            device, token, request.method, path_and_query, timestamp, nonce, signature
+        ):
+            return Response(
+                content='{"detail":"Assinatura ausente/inválida, relógio fora da janela ou nonce reutilizado."}',
+                status_code=401,
+                media_type="application/json",
+            )
         request.state.paired_device = {
             "device_id": device["device_id"],
             "device_name": device["device_name"],
@@ -379,8 +397,19 @@ def create_app(
     async def create_pairing_request(
         payload: PairingRequestCreate, request: Request
     ) -> PairingRequestResponse:
-        if config.pairing_enabled and not is_loopback(request) and request.url.scheme != "https":
-            raise HTTPException(status_code=403, detail="Pareamento remoto exige HTTPS.")
+        if config.pairing_enabled and not is_loopback(request):
+            if request.url.scheme != "https":
+                raise HTTPException(status_code=403, detail="Pareamento remoto exige HTTPS.")
+            client_host = request.client.host if request.client else "unknown"
+            now = time.monotonic()
+            attempts = [
+                moment for moment in request.app.state.pairing_rate_limits.get(client_host, [])
+                if now - moment < 60
+            ]
+            if len(attempts) >= 5:
+                raise HTTPException(status_code=429, detail="Muitas solicitações de pareamento. Aguarde um minuto.")
+            attempts.append(now)
+            request.app.state.pairing_rate_limits[client_host] = attempts
         try:
             result = request.app.state.pairing.create_request(
                 payload.device_name, payload.scopes
