@@ -53,6 +53,26 @@ export default function App() {
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [playingMessage, setPlayingMessage] = useState<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      const recorder = recorderRef.current;
+      if (recorder) {
+        recorder.ondataavailable = null;
+        recorder.onstop = null;
+        recorder.onerror = null;
+        recorder.stream.getTracks().forEach((track) => track.stop());
+        if (recorder.state !== "inactive") recorder.stop();
+        recorderRef.current = null;
+      }
+      audioRef.current?.pause();
+      audioRef.current = null;
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -272,17 +292,25 @@ export default function App() {
       }
       const audioUrl = URL.createObjectURL(await response.blob());
       const audio = new Audio(audioUrl);
-      audio.onended = () => {
+      audioUrlRef.current = audioUrl;
+      audioRef.current = audio;
+      const cleanup = () => {
         URL.revokeObjectURL(audioUrl);
+        if (audioUrlRef.current === audioUrl) audioUrlRef.current = null;
+        if (audioRef.current === audio) audioRef.current = null;
         setPlayingMessage(null);
       };
+      audio.onended = cleanup;
       audio.onerror = () => {
-        URL.revokeObjectURL(audioUrl);
-        setPlayingMessage(null);
+        cleanup();
         setError("O navegador não conseguiu reproduzir o áudio.");
       };
       await audio.play();
     } catch (cause) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
       setPlayingMessage(null);
       setError(cause instanceof Error ? cause.message : "Falha ao reproduzir a resposta.");
     }
