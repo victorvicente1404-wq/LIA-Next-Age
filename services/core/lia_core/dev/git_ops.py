@@ -219,6 +219,8 @@ class GitOperationManager:
                 raise GitOperationError("Caminho de arquivo inválido.")
             if any(char in raw for char in "*?[]:") or "\\" in raw:
                 raise GitOperationError("Use caminhos literais, sem padrões ou pathspecs Git.")
+            if any(part.startswith("-") for part in path.parts):
+                raise GitOperationError("Caminhos iniciados por hífen não são permitidos para commits.")
             if any(
                 part.lower() in SENSITIVE_PARTS
                 or (part.lower().startswith(".env") and part.lower() != ".env.example")
