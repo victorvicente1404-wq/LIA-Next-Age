@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 IGNORED_NAMES = {
     ".git",
     ".venv",
@@ -107,7 +106,7 @@ class WorkspaceRegistry:
             raise UnsafeWorkspacePath(relative_path)
         try:
             resolved = (root / supplied).resolve(strict=True)
-        except OSError as exc:
+        except (OSError, RuntimeError) as exc:
             raise WorkspaceItemNotFound(relative_path) from exc
         if not resolved.is_relative_to(root):
             raise UnsafeWorkspacePath(relative_path)
