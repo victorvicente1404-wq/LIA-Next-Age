@@ -77,6 +77,7 @@ A chave HMAC são os bytes do digest SHA-256 do `pairing_code` (não o texto hex
 
 - O frontend ainda não oferece a tela de pareamento. O módulo `apps/web/src/pairing.ts` já deriva uma chave HMAC não extraível, persiste a `CryptoKey` no IndexedDB e assina requisições; a integração dessa rotina à interface ainda está pendente.
 - O aplicativo Android ainda não implementa o cliente de pareamento.
+- Uma chave HMAC não extraível impede exportação direta pelo JavaScript, mas não impede um script malicioso na mesma origem de solicitar assinaturas. A interface final precisa de CSP rígida, dependências controladas e proteção contra XSS.
 - A leitura remota de memória só existe com o escopo opcional `memory:read`. Escrita de memória, arquivos, Git, terminal e Lia Dev não são acessíveis remotamente.
 - Não há suporte a proxy reverso ou CORS cross-origin nesta etapa. `LIA_ALLOWED_ORIGINS` é uma proteção de origem/CSRF, não uma configuração CORS. O cliente web remoto ainda não está pronto; não habilite encaminhamento de headers de proxy sem configurar uma lista de proxies confiáveis e revisar o esquema HTTPS efetivo.
 - A validação automatizada cobre aprovação, expiração/uso único, escopos, origem, HTTPS, assinatura, replay, revogação e bloqueio de Lia Dev. Certificados, firewall e comportamento real em Android ainda exigem teste no ambiente de destino.
