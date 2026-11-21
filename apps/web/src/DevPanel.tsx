@@ -28,6 +28,13 @@ type TaskProposal = {
   cwd: string;
   expires_in_seconds: string;
 };
+type GitState = {
+  branch: string; head: string; dirty: boolean; clean: boolean; status: string;
+  branches: string[];
+  recent_commits: Array<{ sha: string; short_sha: string; subject: string }>;
+};
+type GitProposal = { proposal_id: string; action: string; preview: string; branch: string; expires_in_seconds: number };
+type GitResult = { action: string; success: boolean; output: string; branch: string; head: string; clean: boolean };
 type TaskResult = {
   label: string;
   command: string;
@@ -67,6 +74,13 @@ export default function DevPanel() {
   const [selectedTask, setSelectedTask] = useState("");
   const [taskProposal, setTaskProposal] = useState<TaskProposal | null>(null);
   const [taskResult, setTaskResult] = useState<TaskResult | null>(null);
+  const [gitState, setGitState] = useState<GitState | null>(null);
+  const [newBranch, setNewBranch] = useState("");
+  const [checkoutBranch, setCheckoutBranch] = useState("");
+  const [commitMessage, setCommitMessage] = useState("");
+  const [commitPaths, setCommitPaths] = useState("");
+  const [gitProposal, setGitProposal] = useState<GitProposal | null>(null);
+  const [gitResult, setGitResult] = useState<GitResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -133,6 +147,26 @@ export default function DevPanel() {
     return () => {
       active = false;
     };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setGitState(null);
+      return;
+    }
+    let active = true;
+    requestJson<GitState>(`/api/v1/dev/workspaces/${workspaceId}/git`)
+      .then((state) => {
+        if (!active) return;
+        setGitState(state);
+        setCheckoutBranch(state.branches.find((branch) => branch !== "main" && branch !== "master") ?? "");
+        setGitProposal(null);
+        setGitResult(null);
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Falha ao consultar Git.");
+      });
+    return () => { active = false; };
   }, [workspaceId]);
 
   useEffect(() => {
@@ -254,6 +288,42 @@ export default function DevPanel() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function prepareGitOperation(action: string, parameters: Record<string, unknown>) {
+    if (saving || !workspaceId) return;
+    setSaving(true); setError(""); setGitResult(null);
+    try {
+      const result = await requestJson<GitProposal>(
+        `/api/v1/dev/workspaces/${workspaceId}/git/proposals`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...parameters }) },
+      );
+      setGitProposal(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível preparar a operação Git.");
+    } finally { setSaving(false); }
+  }
+
+  async function cancelGitProposal() {
+    if (!gitProposal) return;
+    try { await requestJson<void>(`/api/v1/dev/git/proposals/${gitProposal.proposal_id}`, { method: "DELETE" }); } catch { /* Expired proposals can be discarded locally. */ }
+    setGitProposal(null);
+  }
+
+  async function approveGitOperation() {
+    if (!gitProposal || saving) return;
+    setSaving(true); setError("");
+    try {
+      const result = await requestJson<GitResult>(
+        `/api/v1/dev/git/proposals/${gitProposal.proposal_id}/execute`, { method: "POST" },
+      );
+      setGitResult(result); setGitProposal(null);
+      const state = await requestJson<GitState>(`/api/v1/dev/workspaces/${workspaceId}/git`);
+      setGitState(state);
+      setCheckoutBranch(state.branches.find((branch) => branch !== "main" && branch !== "master") ?? "");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "A operação Git foi bloqueada.");
+    } finally { setSaving(false); }
   }
 
   async function prepareTask() {
@@ -466,6 +536,65 @@ export default function DevPanel() {
       )}
 
 
+
+      <section className="dev-git">
+        <div className="dev-task-heading">
+          <div><strong>Controle Git</strong><p>Branches, commits e reversões com revisão e aprovação separadas.</p></div>
+          {gitState && <span className="readonly-label">{gitState.branch || "HEAD destacado"}</span>}
+        </div>
+        {gitState ? <>
+          <div className="git-status-card">
+            <div><span>Branch atual</span><strong>{gitState.branch || "HEAD destacado"}</strong></div>
+            <div><span>Commit</span><code>{gitState.head.slice(0, 12)}</code></div>
+            <div><span>Workspace</span><strong>{gitState.dirty ? "Com alterações" : "Limpo"}</strong></div>
+            {gitState.status && <pre>{gitState.status}</pre>}
+          </div>
+          {!gitProposal && <div className="git-actions-grid">
+            <div className="git-action">
+              <label htmlFor="git-new-branch">Criar branch</label>
+              <input id="git-new-branch" value={newBranch} onChange={(event) => setNewBranch(event.target.value)} placeholder="feature/minha-ideia" disabled={saving} />
+              <button type="button" onClick={() => void prepareGitOperation("create_branch", { branch: newBranch })} disabled={saving || !newBranch.trim() || gitState.dirty}>Revisar criação</button>
+            </div>
+            <div className="git-action">
+              <label htmlFor="git-checkout">Trocar branch</label>
+              <select id="git-checkout" value={checkoutBranch} onChange={(event) => setCheckoutBranch(event.target.value)} disabled={saving || gitState.dirty}>
+                <option value="">Selecione uma branch</option>
+                {gitState.branches.map((branch) => <option key={branch} value={branch} disabled={branch === "main" || branch === "master"}>{branch}</option>)}
+              </select>
+              <button type="button" onClick={() => void prepareGitOperation("checkout", { branch: checkoutBranch })} disabled={saving || !checkoutBranch || gitState.dirty || checkoutBranch === gitState.branch}>Revisar troca</button>
+            </div>
+            <div className="git-action">
+              <label htmlFor="git-commit-message">Criar commit (branch não protegida)</label>
+              <input id="git-commit-message" value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} placeholder="Descreva a alteração" disabled={saving || gitState.branch === "main" || gitState.branch === "master"} />
+              <textarea aria-label="Arquivos do commit, um por linha" value={commitPaths} onChange={(event) => setCommitPaths(event.target.value)} placeholder={"src/arquivo.py\nREADME.md"} rows={2} disabled={saving || gitState.branch === "main" || gitState.branch === "master"} />
+              <button type="button" onClick={() => void prepareGitOperation("commit", { message: commitMessage, paths: commitPaths.split("\n").map((path) => path.trim()).filter(Boolean) })} disabled={saving || !commitMessage.trim() || !commitPaths.trim() || gitState.branch === "main" || gitState.branch === "master"}>Revisar commit</button>
+            </div>
+            <div className="git-action">
+              <label>Reverter último commit</label>
+              <p>Cria um novo commit que desfaz o anterior. Não apaga o histórico.</p>
+              <button type="button" className="secondary-action" onClick={() => void prepareGitOperation("revert_head", {})} disabled={saving || gitState.dirty || gitState.branch === "main" || gitState.branch === "master"}>Revisar reversão</button>
+            </div>
+          </div>}
+          {gitProposal && <div className="task-review">
+            <strong>Revisão Git · {gitProposal.action}</strong>
+            <pre>{gitProposal.preview}</pre>
+            <small>Expira em {Math.ceil(gitProposal.expires_in_seconds / 60)} minuto(s). Nada foi alterado ainda.</small>
+            <div className="patch-actions">
+              <button type="button" className="secondary-action" onClick={() => void cancelGitProposal()} disabled={saving}>Cancelar</button>
+              <button type="button" onClick={() => void approveGitOperation()} disabled={saving}>{saving ? "Executando…" : "Aprovar operação Git"}</button>
+            </div>
+          </div>}
+          {gitResult && <div className="task-result">
+            <div className="task-result-heading"><strong>Git concluído</strong><span>{gitResult.branch}</span></div>
+            <small>HEAD: {gitResult.head.slice(0, 12)} · {gitResult.clean ? "workspace limpo" : "há alterações pendentes"}</small>
+            <pre>{gitResult.output || "Operação concluída."}</pre>
+          </div>}
+          {gitState.recent_commits.length > 0 && <div className="git-recent">
+            <strong>Commits recentes</strong>
+            {gitState.recent_commits.map((commit) => <div key={commit.sha}><code>{commit.short_sha}</code><span>{commit.subject}</span></div>)}
+          </div>}
+        </> : <p className="dev-message">Git indisponível neste workspace.</p>}
+      </section>
 
       <section className="dev-tasks">
         <div className="dev-task-heading">
