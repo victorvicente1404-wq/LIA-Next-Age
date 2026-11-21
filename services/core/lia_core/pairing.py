@@ -6,6 +6,7 @@ import hmac
 import secrets
 import sqlite3
 import time
+from contextlib import closing
 import uuid
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,7 @@ class PairingStore:
         if not 60 <= token_ttl_seconds <= 365 * 24 * 60 * 60:
             raise ValueError("Pairing token lifetime must be between 60 seconds and one year.")
         self._token_ttl = token_ttl_seconds
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS pairing_requests (
