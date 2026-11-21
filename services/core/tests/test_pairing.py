@@ -157,6 +157,22 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     replay = remote.post(path, headers=headers, json=payload)
     assert replay.status_code == 401
 
+    conversation = remote.post(
+        "/api/v1/conversations",
+        headers=signed_headers(
+            token, "POST", "/api/v1/conversations", "nonce-123456789017"
+        ),
+        json={"title": "Conversa do celular"},
+    )
+    assert conversation.status_code == 201
+    conversation_path = f"/api/v1/conversations/{conversation.json()['id']}"
+    delete_conversation = remote.delete(
+        conversation_path,
+        headers=signed_headers(
+            token, "DELETE", conversation_path, "nonce-123456789018"
+        ),
+    )
+    assert delete_conversation.status_code == 403
     no_memory_scope = remote.get(
         "/api/v1/memories",
         headers=signed_headers(token, "GET", "/api/v1/memories", "nonce-123456789013"),
