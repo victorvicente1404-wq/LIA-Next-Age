@@ -48,7 +48,7 @@ For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python
 ## API
 
 - `GET /health`: service and configured inference status.
-- `POST /api/v1/chat`: local chat completion; response includes engine name, `external_traffic: false`, and the number of memories used.
+- `POST /api/v1/chat`: local chat completion; response includes engine name, `external_traffic: false`, memories used, selected specialist profile, tool calls, and the bounded plan.
 - `POST /api/v1/memories`: save a fact, preference, knowledge item, or note.
 - `GET /api/v1/memories?q=...&kind=...`: search/list saved memories.
 - `DELETE /api/v1/memories/{id}`: delete one memory.
