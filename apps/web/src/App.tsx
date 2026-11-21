@@ -5,6 +5,7 @@ import MemoryPanel from "./MemoryPanel";
 type Message = {
   role: "user" | "assistant";
   content: string;
+  memoriesUsed?: number;
 };
 
 type CoreHealth = {
@@ -61,6 +62,7 @@ export default function App() {
       });
       const data = (await response.json()) as {
         content?: string;
+        memories_used?: number;
         detail?: string | { message?: string };
       };
       if (!response.ok) {
@@ -69,7 +71,14 @@ export default function App() {
         throw new Error(detail ?? "Não consegui falar com o modelo local.");
       }
       if (data.content) {
-        setMessages((current) => [...current, { role: "assistant", content: data.content! }]);
+        setMessages((current) => [
+          ...current,
+          {
+            role: "assistant",
+            content: data.content!,
+            memoriesUsed: data.memories_used ?? 0,
+          },
+        ]);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha ao enviar mensagem.");
@@ -148,6 +157,11 @@ export default function App() {
                     <article className={`message ${message.role}`} key={index}>
                       <span className="message-author">{message.role === "user" ? "Você" : "Lia"}</span>
                       <p>{message.content}</p>
+                      {message.role === "assistant" && (message.memoriesUsed ?? 0) > 0 && (
+                        <small className="memory-context-note">
+                          {message.memoriesUsed} {message.memoriesUsed === 1 ? "memória usada" : "memórias usadas"}
+                        </small>
+                      )}
                     </article>
                   ))}
                   {busy && <div className="thinking">Lia está pensando localmente…</div>}
