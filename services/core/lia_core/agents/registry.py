@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -59,12 +60,17 @@ class ToolRegistry:
 
     @staticmethod
     def _validate_arguments(spec: ToolSpec, arguments: dict[str, Any]) -> str | None:
+        """Validate the strict, flat JSON-schema subset used by local tools."""
         schema = spec.parameters
         if not isinstance(schema, dict) or schema.get("type") != "object":
             return "Esquema de parâmetros inválido."
         properties = schema.get("properties", {})
         required = schema.get("required", [])
-        if not isinstance(properties, dict) or not isinstance(required, list):
+        if (
+            not isinstance(properties, dict)
+            or not isinstance(required, list)
+            or schema.get("additionalProperties", False) is not False
+        ):
             return "Esquema de parâmetros inválido."
         if any(not isinstance(key, str) for key in required):
             return "Esquema de parâmetros inválido."
@@ -86,11 +92,9 @@ class ToolRegistry:
                 "number": lambda item: (
                     isinstance(item, (int, float))
                     and not isinstance(item, bool)
-                    and (not isinstance(item, float) or __import__("math").isfinite(item))
+                    and (not isinstance(item, float) or math.isfinite(item))
                 ),
                 "boolean": lambda item: isinstance(item, bool),
-                "object": lambda item: isinstance(item, dict),
-                "array": lambda item: isinstance(item, list),
             }
             if expected not in valid_types or not valid_types[expected](value):
                 return f"Tipo inválido para o parâmetro '{key}'."
@@ -120,4 +124,6 @@ class ToolRegistry:
         except (TypeError, ValueError) as exc:
             return ToolResult(name, f"Argumentos inválidos: {exc}", False)
         except Exception:  # noqa: BLE001 - isolate tool failures from the agent loop
-            return ToolResult(name, "A ferramenta falhou; detalhes internos foram ocultados.", False)
+            return ToolResult(
+                name, "A ferramenta falhou; detalhes internos foram ocultados.", False
+            )
