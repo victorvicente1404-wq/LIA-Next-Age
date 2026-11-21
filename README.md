@@ -33,7 +33,7 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - Exibir o plano e o diff antes de gravar alterações.
 - Exigir aprovação para escrita, instalação de dependências, execução de comandos e acesso a dados sensíveis.
 - Registrar ações e permitir desfazer alterações sempre que possível.
-- A interface e a API de desenvolvimento são vinculadas ao loopback; não as exponha à rede antes de implementar autenticação e pareamento de dispositivos.
+- A interface e Lia Dev permanecem locais por padrão. A API de pareamento remoto é opt-in, exige HTTPS, aprovação local, escopos mínimos, assinatura com nonce de uso único e revogação; a integração de cliente ainda está pendente. Consulte [o protocolo de pareamento](docs/DEVICE_PAIRING.md).
 - Lia Dev só enxerga pastas adicionadas explicitamente à allowlist `LIA_DEV_WORKSPACES`; leitura de arquivos de segredos é bloqueada.
 
 ## Progresso
@@ -51,7 +51,7 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] Lia Dev: proposta de patch com diff, aprovação em endpoint separado, verificação de versão, escrita atômica e backup para rollback.
 - [x] Lia Dev: tarefas tipadas e predefinidas (Git status/diff, pytest, Ruff e build web), com prévia, aprovação separada, timeout e saída limitada.
 - [x] Lia Dev: operações Git tipadas (branch, commit, checkout e revert) com revisão e aprovação.
-- [x] Primeira camada de voz local: captura manual no navegador, STT whisper.cpp local e TTS Piper opcional, sem fallback remoto (pareamento móvel seguro e validação Android ainda pendentes).
+- [x] Primeira camada de voz local: captura manual no navegador, STT whisper.cpp local e TTS Piper opcional, sem fallback remoto (validação Android ainda pendente).\n- [x] API inicial de pareamento: aprovação local, HTTPS obrigatório para acesso remoto, escopos chat/voz, tokens armazenados como hash, revogação, assinatura HMAC com nonce anti-replay e proteção de origem. Cliente Android e interface de pareamento ainda pendentes.
 - [ ] Integrar percepção e conectores opcionais.
 - [x] Primeira versão do orquestrador cognitivo próprio da Lia, com loop limitado e ferramentas locais allowlisted; OpenJarvis opcional como runtime.
 - [x] Perfis especialistas subordinados ao mesmo orquestrador (geral, memória e engenharia), com allowlists específicas e sem modelos ou memórias separados.
