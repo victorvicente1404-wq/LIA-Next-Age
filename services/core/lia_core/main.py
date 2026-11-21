@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from lia_core.config import Settings
 from lia_core.dev.patches import PatchConflict, PatchManager, PatchNotFound
@@ -60,6 +60,20 @@ class MemoryCreate(BaseModel):
     kind: str = Field(pattern="^(fact|preference|knowledge|note)$")
     content: str = Field(min_length=1, max_length=10000)
     key: str | None = Field(default=None, max_length=200)
+
+    @field_validator("content")
+    @classmethod
+    def content_must_not_be_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("O conteúdo da memória não pode estar vazio.")
+        return normalized
+
+    @field_validator("key")
+    @classmethod
+    def normalize_key(cls, value: str | None) -> str | None:
+        normalized = value.strip() if value else None
+        return normalized or None
 
 
 class MemoryItem(BaseModel):
