@@ -77,6 +77,6 @@ A chave HMAC é o próprio token Bearer. O path inclui a query string, quando ho
 
 - O frontend ainda não oferece tela de pareamento, armazenamento protegido do token nem assinatura HMAC.
 - O aplicativo Android ainda não implementa o cliente de pareamento.
-- Não há acesso remoto a memória, arquivos, Git, terminal ou Lia Dev.
-- Não há suporte a proxy reverso nesta etapa; não habilite encaminhamento de headers de proxy sem configurar uma lista de proxies confiáveis e revisar o esquema HTTPS efetivo.
+- A leitura remota de memória só existe com o escopo opcional `memory:read`. Escrita de memória, arquivos, Git, terminal e Lia Dev não são acessíveis remotamente.
+- Não há suporte a proxy reverso ou CORS cross-origin nesta etapa. `LIA_ALLOWED_ORIGINS` é uma proteção de origem/CSRF, não uma configuração CORS. O cliente web remoto ainda não está pronto; não habilite encaminhamento de headers de proxy sem configurar uma lista de proxies confiáveis e revisar o esquema HTTPS efetivo.
 - A validação automatizada cobre aprovação, expiração/uso único, escopos, origem, HTTPS, assinatura, replay, revogação e bloqueio de Lia Dev. Certificados, firewall e comportamento real em Android ainda exigem teste no ambiente de destino.
