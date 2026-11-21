@@ -103,11 +103,6 @@ class ToolRegistry:
                     return f"O parâmetro '{key}' é muito curto."
                 if len(value) > definition.get("maxLength", float("inf")):
                     return f"O parâmetro '{key}' é muito longo."
-            if isinstance(value, list):
-                if len(value) < definition.get("minItems", 0):
-                    return f"O parâmetro '{key}' tem poucos itens."
-                if len(value) > definition.get("maxItems", float("inf")):
-                    return f"O parâmetro '{key}' tem itens demais."
         return None
 
     def execute(self, name: str, arguments: dict[str, Any]) -> ToolResult:
