@@ -103,7 +103,6 @@ class GitOperationManager:
     def _fingerprint(value: str) -> str:
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
-
     def _fingerprint_files(self, root: Path, paths: list[str]) -> str:
         digest = hashlib.sha256()
         total_size = 0
