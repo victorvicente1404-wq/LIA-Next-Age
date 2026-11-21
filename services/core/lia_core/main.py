@@ -77,6 +77,7 @@ class ChatResponse(BaseModel):
     agent: str = "simple"
     tool_calls: int = 0
     agent_turns: int = 1
+    plan: list[str] = Field(default_factory=list)
 
 
 class ChatEngine(Protocol):
@@ -357,6 +358,7 @@ def create_app(
             agent=str(agent_result.get("agent", "lia_orchestrator")) if agent_result else "simple",
             tool_calls=int(agent_result.get("tool_calls", 0)),
             agent_turns=int(agent_result.get("turns", 1)),
+            plan=list(agent_result.get("plan", [])),
         )
 
     @app.post("/api/v1/memories", response_model=MemoryItem, status_code=status.HTTP_201_CREATED)
