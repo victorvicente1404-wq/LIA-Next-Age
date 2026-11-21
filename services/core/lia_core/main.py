@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from lia_core.config import Settings
 from lia_core.conversations import ConversationNotFound, ConversationStore
 from lia_core.dev.patches import PatchConflict, PatchManager, PatchNotFound
+from lia_core.dev.git_ops import GitOperationError, GitOperationManager, GitProposalNotFound
 from lia_core.dev.tasks import TaskNotAvailable, TaskProposalNotFound, TaskRunner
 from lia_core.dev.workspaces import (
     SensitiveWorkspaceFile,
@@ -163,6 +164,30 @@ class DevRollbackItem(BaseModel):
     status: str
 
 
+class DevGitOperationRequest(BaseModel):
+    action: Literal["create_branch", "checkout", "commit", "revert_head"]
+    branch: str | None = Field(default=None, max_length=120)
+    message: str | None = Field(default=None, max_length=160)
+    paths: list[str] = Field(default_factory=list, max_length=20)
+
+
+class DevGitProposal(BaseModel):
+    proposal_id: str
+    action: str
+    preview: str
+    branch: str
+    expires_in_seconds: int
+
+
+class DevGitResult(BaseModel):
+    action: str
+    success: bool
+    output: str
+    branch: str
+    head: str
+    clean: bool
+
+
 class DevTaskRequest(BaseModel):
     task: str = Field(min_length=1, max_length=40)
 
@@ -204,6 +229,7 @@ def create_app(
     app.state.workspaces = WorkspaceRegistry(config.dev_workspaces)
     app.state.patches = PatchManager(app.state.workspaces, config.data_dir / "dev-backups")
     app.state.tasks = TaskRunner(app.state.workspaces)
+    app.state.git_operations = GitOperationManager(app.state.workspaces)
     app.state.inference_configured = bool(config.llm_base_url)
 
     @app.get("/health", response_model=HealthResponse)
@@ -382,6 +408,64 @@ def create_app(
             raise HTTPException(status_code=415, detail="Arquivo não é texto UTF-8 compatível.") from exc
         return WorkspaceFileContent(**item)
 
+
+    @app.get("/api/v1/dev/workspaces/{workspace_id}/git")
+    async def get_workspace_git_state(
+        workspace_id: str, request: Request
+    ) -> dict[str, object]:
+        try:
+            return request.app.state.git_operations.list_state(workspace_id)
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+        except GitOperationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/v1/dev/workspaces/{workspace_id}/git/proposals",
+        response_model=DevGitProposal,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def propose_git_operation(
+        workspace_id: str, payload: DevGitOperationRequest, request: Request
+    ) -> DevGitProposal:
+        parameters = {
+            "branch": payload.branch,
+            "message": payload.message,
+            "paths": payload.paths,
+        }
+        try:
+            result = request.app.state.git_operations.propose(
+                workspace_id, payload.action, parameters
+            )
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+        except GitOperationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return DevGitProposal(**result)
+
+    @app.delete(
+        "/api/v1/dev/git/proposals/{proposal_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def cancel_git_operation(proposal_id: str, request: Request) -> Response:
+        if not request.app.state.git_operations.cancel(proposal_id):
+            raise HTTPException(status_code=404, detail="Proposta Git não encontrada ou expirada.")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.post(
+        "/api/v1/dev/git/proposals/{proposal_id}/execute",
+        response_model=DevGitResult,
+    )
+    async def execute_git_operation(proposal_id: str, request: Request) -> DevGitResult:
+        try:
+            result = request.app.state.git_operations.execute(proposal_id)
+        except GitProposalNotFound as exc:
+            raise HTTPException(status_code=404, detail="Proposta Git não encontrada, expirada ou já utilizada.") from exc
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+        except GitOperationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return DevGitResult(**result)
 
     @app.post(
         "/api/v1/dev/workspaces/{workspace_id}/patches",
