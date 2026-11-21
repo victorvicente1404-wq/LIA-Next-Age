@@ -7,6 +7,15 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
 from lia_core.config import Settings
+from lia_core.dev.workspaces import (
+    SensitiveWorkspaceFile,
+    UnsupportedTextFile,
+    UnsafeWorkspacePath,
+    WorkspaceFileTooLarge,
+    WorkspaceItemNotFound,
+    WorkspaceNotFound,
+    WorkspaceRegistry,
+)
 from lia_core.inference.llamacpp import LocalInferenceClient, LocalModelError
 from lia_core.memory.store import MemoryStore
 
@@ -56,15 +65,34 @@ class MemoryItem(BaseModel):
     created_at: str
 
 
+class WorkspaceSummary(BaseModel):
+    id: str
+    name: str
+
+
+class WorkspaceFileEntry(BaseModel):
+    name: str
+    path: str
+    kind: Literal["file", "directory"]
+    size: int | None
+
+
+class WorkspaceFileContent(BaseModel):
+    path: str
+    content: str
+    size: int
+
+
 def create_app(
     settings: Settings | None = None,
     inference: ChatEngine | None = None,
     memory_path: Path | None = None,
 ) -> FastAPI:
     config = settings or Settings.from_env()
-    app = FastAPI(title="Lia Core", version="0.2.0")
+    app = FastAPI(title="Lia Core", version="0.3.0")
     app.state.inference = inference or LocalInferenceClient(config)
     app.state.memory = MemoryStore(memory_path or config.data_dir / "memory.sqlite3")
+    app.state.workspaces = WorkspaceRegistry(config.dev_workspaces)
     app.state.inference_configured = bool(config.llm_base_url)
 
     @app.get("/health", response_model=HealthResponse)
@@ -111,6 +139,57 @@ def create_app(
         if not request.app.state.memory.delete(memory_id):
             raise HTTPException(status_code=404, detail="Memória não encontrada.")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.get("/api/v1/dev/workspaces", response_model=list[WorkspaceSummary])
+    async def list_workspaces(request: Request) -> list[WorkspaceSummary]:
+        return [
+            WorkspaceSummary(**workspace)
+            for workspace in request.app.state.workspaces.list_workspaces()
+        ]
+
+    @app.get(
+        "/api/v1/dev/workspaces/{workspace_id}/files",
+        response_model=list[WorkspaceFileEntry],
+    )
+    async def list_workspace_files(
+        workspace_id: str,
+        request: Request,
+        path: str = Query(default=".", max_length=1000),
+    ) -> list[WorkspaceFileEntry]:
+        try:
+            entries = request.app.state.workspaces.list_files(workspace_id, path)
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+        except UnsafeWorkspacePath as exc:
+            raise HTTPException(status_code=400, detail="Caminho fora do workspace.") from exc
+        except WorkspaceItemNotFound as exc:
+            raise HTTPException(status_code=404, detail="Diretório não encontrado.") from exc
+        return [WorkspaceFileEntry(**entry) for entry in entries]
+
+    @app.get(
+        "/api/v1/dev/workspaces/{workspace_id}/file",
+        response_model=WorkspaceFileContent,
+    )
+    async def read_workspace_file(
+        workspace_id: str,
+        request: Request,
+        path: str = Query(..., min_length=1, max_length=1000),
+    ) -> WorkspaceFileContent:
+        try:
+            item = request.app.state.workspaces.read_file(workspace_id, path)
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+        except UnsafeWorkspacePath as exc:
+            raise HTTPException(status_code=400, detail="Caminho fora do workspace.") from exc
+        except WorkspaceItemNotFound as exc:
+            raise HTTPException(status_code=404, detail="Arquivo não encontrado.") from exc
+        except SensitiveWorkspaceFile as exc:
+            raise HTTPException(status_code=403, detail="Leitura deste arquivo bloqueada por segurança.") from exc
+        except WorkspaceFileTooLarge as exc:
+            raise HTTPException(status_code=413, detail="Arquivo excede o limite de leitura de 256 KiB.") from exc
+        except UnsupportedTextFile as exc:
+            raise HTTPException(status_code=415, detail="Arquivo não é texto UTF-8 compatível.") from exc
+        return WorkspaceFileContent(**item)
 
     return app
 
