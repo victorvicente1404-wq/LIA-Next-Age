@@ -168,9 +168,13 @@ class GitOperationManager:
                 raise GitOperationError("Caminho de arquivo inválido.")
             if any(char in raw for char in "*?[]:") or "\\\\" in raw:
                 raise GitOperationError("Use caminhos literais, sem padrões ou pathspecs Git.")
-            if any(part.lower() in SENSITIVE_PARTS for part in path.parts):
-                raise GitOperationError("Arquivos de diretórios sensíveis não podem entrar em commits.")
-            if path.name.lower() in {".env", "id_rsa", "id_ed25519", "credentials.json", "secrets.json"}:
+            if any(
+                part.lower() in SENSITIVE_PARTS
+                or (part.lower().startswith(".env") and part.lower() != ".env.example")
+                for part in path.parts
+            ):
+                raise GitOperationError("Arquivos de ambiente ou diretórios sensíveis não podem entrar em commits.")
+            if path.name.lower() in {"id_rsa", "id_ed25519", "credentials.json", "secrets.json"}:
                 raise GitOperationError("Arquivo sensível bloqueado para commit.")
             if path.suffix.lower() in SENSITIVE_SUFFIXES:
                 raise GitOperationError("Arquivo de chave/certificado bloqueado para commit.")
