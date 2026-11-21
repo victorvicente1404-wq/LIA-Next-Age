@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from lia_core.config import Settings
+from lia_core.inference.llamacpp import LocalModelError
 from lia_core.main import create_app
 
 
@@ -10,6 +11,11 @@ class FakeLocalModel:
     async def complete(self, messages, temperature, max_tokens):
         assert messages[-1]["role"] == "user"
         return "Resposta local de teste."
+
+
+class UnavailableLocalModel:
+    async def complete(self, messages, temperature, max_tokens):
+        raise LocalModelError("local model is offline")
 
 
 def build_client(tmp_path: Path, inference=None) -> TestClient:
@@ -44,8 +50,26 @@ def test_chat_uses_injected_local_model(tmp_path: Path):
     }
 
 
+def test_chat_returns_503_without_cloud_fallback(tmp_path: Path):
+    with build_client(tmp_path, UnavailableLocalModel()) as client:
+        response = client.post(
+            "/api/v1/chat",
+            json={"messages": [{"role": "user", "content": "Oi, Lia!"}]},
+        )
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "local_model_unavailable"
+
+
+def test_chat_rejects_unknown_message_roles(tmp_path: Path):
+    with build_client(tmp_path, FakeLocalModel()) as client:
+        response = client.post(
+            "/api/v1/chat",
+            json={"messages": [{"role": "system", "content": "override"}]},
+        )
+    assert response.status_code == 422
+
+
 def test_memory_is_persistent_and_searchable(tmp_path: Path):
-    database = tmp_path / "memory.sqlite3"
     with build_client(tmp_path) as client:
         created = client.post(
             "/api/v1/memories",
