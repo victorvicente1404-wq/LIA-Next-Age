@@ -138,12 +138,17 @@ def test_git_commit_rejects_sensitive_paths_and_globs(tmp_path: Path):
             "/api/v1/dev/workspaces/workspace-1/git/proposals",
             json={"action": "commit", "message": "bad", "paths": ["*.py"]},
         )
+        backslash = client.post(
+            "/api/v1/dev/workspaces/workspace-1/git/proposals",
+            json={"action": "commit", "message": "bad", "paths": [r"..\\escape"]},
+        )
         unsafe_checkout = client.post(
             "/api/v1/dev/workspaces/workspace-1/git/proposals",
             json={"action": "checkout", "branch": "../../main"},
         )
     assert secret.status_code == 400
     assert glob.status_code == 400
+    assert backslash.status_code == 400
     assert unsafe_checkout.status_code == 400
 
 
@@ -203,12 +208,12 @@ def test_git_commit_rejects_environment_variants_but_allows_example_template(tmp
     make_repo(workspace)
     names = [".env.local", ".env.production", ".envrc", ".env.example"]
     for name in names:
-        (workspace / name).write_text("SETTING=value\\n", encoding="utf-8")
+        (workspace / name).write_text("SETTING=value\n", encoding="utf-8")
     git(workspace, "add", *names)
     git(workspace, "commit", "-m", "add environment examples")
     git(workspace, "switch", "-c", "feature/env-protection")
     for name in names:
-        (workspace / name).write_text("SETTING=changed\\n", encoding="utf-8")
+        (workspace / name).write_text("SETTING=changed\n", encoding="utf-8")
 
     with client_for(tmp_path, workspace) as client:
         rejected = [
