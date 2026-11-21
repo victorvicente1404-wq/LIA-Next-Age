@@ -168,3 +168,30 @@ def test_git_commit_rejects_directory_path_to_prevent_sensitive_file_bypass(tmp_
     assert proposal.status_code == 400
     assert "arquivos regulares" in proposal.json()["detail"]
     assert "src/.env" in git(workspace, "status", "--short")
+
+
+def test_git_commit_detects_changes_before_truncated_diff_prefix(tmp_path: Path):
+    workspace = tmp_path / "project"
+    make_repo(workspace)
+    app_file = workspace / "app.py"
+    app_file.write_text("a" * 20_000 + "\n", encoding="utf-8")
+    git(workspace, "add", "app.py")
+    git(workspace, "commit", "-m", "add large source file")
+    git(workspace, "switch", "-c", "feature/large-diff")
+    app_file.write_text("b" + "a" * 20_000 + "\n", encoding="utf-8")
+
+    with client_for(tmp_path, workspace) as client:
+        proposal = client.post(
+            "/api/v1/dev/workspaces/workspace-1/git/proposals",
+            json={"action": "commit", "message": "review large diff", "paths": ["app.py"]},
+        )
+        assert proposal.status_code == 201
+        proposal_id = proposal.json()["proposal_id"]
+        reviewed_head = git(workspace, "rev-parse", "HEAD")
+        app_file.write_text("c" + "a" * 20_000 + "\n", encoding="utf-8")
+        result = client.post(f"/api/v1/dev/git/proposals/{proposal_id}/execute")
+
+    assert result.status_code == 409
+    assert git(workspace, "rev-parse", "HEAD") == reviewed_head
+    assert "app.py" in git(workspace, "status", "--short")
+
