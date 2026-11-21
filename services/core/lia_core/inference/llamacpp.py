@@ -12,6 +12,8 @@ class LocalModelError(RuntimeError):
 class LocalInferenceClient:
     """Small adapter for llama.cpp's OpenAI-compatible chat completions endpoint."""
 
+    engine_name = "llama.cpp"
+
     def __init__(self, settings: Settings) -> None:
         self.base_url = settings.llm_base_url.rstrip("/")
         self.model = settings.llm_model
