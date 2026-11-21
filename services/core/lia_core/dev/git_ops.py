@@ -157,6 +157,7 @@ class GitOperationManager:
             "branch": branch,
             "head": head,
             "dirty": bool(status.strip()),
+            "clean": not bool(status.strip()),
             "status": status[-MAX_OUTPUT:],
             "branches": [item for item in branches.splitlines() if item],
             "recent_commits": [
