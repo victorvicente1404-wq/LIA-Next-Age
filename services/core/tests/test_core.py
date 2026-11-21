@@ -384,3 +384,60 @@ def test_lia_dev_task_executes_only_after_approval_and_only_once(tmp_path: Path)
     assert result.json()["success"] is True
     assert result.json()["return_code"] == 0
     assert repeated.status_code == 404
+
+
+def test_conversation_history_persists_without_becoming_memory(tmp_path: Path):
+    model = FakeLocalModel()
+    with build_client(tmp_path, model) as client:
+        created = client.post("/api/v1/conversations", json={"title": "Nova conversa"})
+        assert created.status_code == 201
+        conversation_id = created.json()["id"]
+
+        response = client.post(
+            "/api/v1/chat",
+            json={
+                "conversation_id": conversation_id,
+                "messages": [{"role": "user", "content": "Vamos falar sobre robótica."}],
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["content"] == "Resposta local de teste."
+
+        detail = client.get(f"/api/v1/conversations/{conversation_id}")
+        assert detail.status_code == 200
+        assert detail.json()["title"] == "Vamos falar sobre robótica."
+        assert [item["role"] for item in detail.json()["messages"]] == [
+            "user",
+            "assistant",
+        ]
+        assert detail.json()["messages"][0]["content"] == "Vamos falar sobre robótica."
+        assert client.get("/api/v1/memories").json() == []
+
+    with build_client(tmp_path) as restarted_client:
+        restored = restarted_client.get(f"/api/v1/conversations/{conversation_id}")
+        assert restored.status_code == 200
+        assert len(restored.json()["messages"]) == 2
+        assert restarted_client.get("/api/v1/memories").json() == []
+
+
+def test_conversation_endpoints_support_pagination_and_delete(tmp_path: Path):
+    with build_client(tmp_path, FakeLocalModel()) as client:
+        first = client.post("/api/v1/conversations", json={}).json()
+        second = client.post(
+            "/api/v1/conversations", json={"title": "Outra conversa"}
+        ).json()
+        assert len(client.get("/api/v1/conversations", params={"limit": 1}).json()) == 1
+        assert client.get(f"/api/v1/conversations/{first['id']}?limit=1&offset=0").status_code == 200
+        assert client.delete(f"/api/v1/conversations/{second['id']}").status_code == 204
+        assert client.get(f"/api/v1/conversations/{second['id']}").status_code == 404
+        assert client.delete(f"/api/v1/conversations/{second['id']}").status_code == 404
+
+
+def test_legacy_chat_does_not_create_conversation_automatically(tmp_path: Path):
+    with build_client(tmp_path, FakeLocalModel()) as client:
+        response = client.post(
+            "/api/v1/chat",
+            json={"messages": [{"role": "user", "content": "Mensagem sem sessão."}]},
+        )
+        assert response.status_code == 200
+        assert client.get("/api/v1/conversations").json() == []
