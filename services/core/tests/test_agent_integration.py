@@ -14,6 +14,7 @@ class FakeInference:
             "tool_calls": 2,
             "turns": 3,
             "agent": "lia",
+            "specialist": "engineering",
             "plan": ["Calcular", "Explicar"],
         }
         self.agent_error = agent_error
@@ -53,6 +54,7 @@ def test_chat_uses_agent_for_user_turn_and_returns_agent_metadata(tmp_path):
     assert response.status_code == 200
     assert response.json()["content"] == "Resposta do agente"
     assert response.json()["agent"] == "lia"
+    assert response.json()["specialist"] == "engineering"
     assert response.json()["tool_calls"] == 2
     assert response.json()["agent_turns"] == 3
     assert response.json()["plan"] == ["Calcular", "Explicar"]
