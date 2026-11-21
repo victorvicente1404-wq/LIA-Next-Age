@@ -130,3 +130,12 @@
 
 **Ameaças consideradas:** dispositivos desconhecidos na LAN, páginas web maliciosas tentando acessar serviços locais, roubo/reuso de tokens, replay de solicitações e exposição acidental de dados pessoais ou workspaces.
 
+**Status da implementação inicial:**
+- `LIA_PAIRING_ENABLED=false` mantém o acesso remoto à API bloqueado, mesmo que o processo escute em uma interface LAN. O modo local continua acessível por loopback.
+- Solicitações remotas exigem HTTPS, têm código de 256 bits, expiração de cinco minutos, até cinco tentativas de aprovação e limite de criação por origem.
+- A aprovação ocorre localmente. O código secreto já conhecido pelo dispositivo solicitante torna-se seu token Bearer após a aprovação; o endpoint de aprovação nunca devolve o segredo. Apenas hashes são persistidos.
+- Os escopos são `chat`, `voice` e `memory:read` opcional. Sem `memory:read`, o chat remoto não recebe memórias nem ferramentas de consulta à memória. Escrita de memória e Lia Dev continuam locais.
+- Requisições autenticadas exigem HMAC-SHA256, timestamp e nonce persistido de uso único. Dispositivos podem ser revogados localmente.
+- Origens não locais continuam classificadas como remotas mesmo quando chegam por um proxy local, reduzindo o risco de DNS rebinding/proxy bypass. Origens locais de navegador são validadas contra a allowlist quando o pareamento está ativo.
+- O protocolo e o backend têm testes automatizados. A interface de aprovação, armazenamento protegido do token no cliente, integração Android, certificados reais e configuração de firewall ainda não foram validados. Não habilitar acesso remoto em produção até concluir esses itens.
+
