@@ -92,7 +92,7 @@
 - llama.cpp HTTP e OpenJarvis LlamaCppEngine usam o mesmo orquestrador. OpenJarvis é opcional e substituível.
 - O caminho simples continua disponível com `use_tools=false`; não existe fallback remoto.
 
-**Limitações conhecidas:** allowlist inicial limitada a calculadora e busca de memória; ainda não há plano persistente, agentes especialistas, tarefas interrompíveis, ferramentas de escrita ou conectores. A validação real com GGUF e Android continua pendente.
+**Limitações conhecidas:** allowlist inicial limitada a calculadora e busca de memória; ainda não há plano persistente, agentes autônomos separados, tarefas interrompíveis, ferramentas de escrita ou conectores. A validação real com GGUF e Android continua pendente. Os perfis especialistas iniciais são descritos no ADR-007.
 
 
 ## ADR-007 — Especialistas como perfis subordinados ao orquestrador
