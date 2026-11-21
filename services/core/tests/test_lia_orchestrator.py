@@ -15,6 +15,7 @@ def test_orchestrator_returns_direct_final_answer(tmp_path):
     assert result["content"] == "Olá!"
     assert result["tool_calls"] == 0
     assert result["agent"] == "lia"
+    assert result["specialist"] == "general"
 
 
 def test_orchestrator_executes_allowlisted_tool_then_finishes(tmp_path):
