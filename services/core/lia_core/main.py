@@ -16,7 +16,8 @@ from lia_core.dev.workspaces import (
     WorkspaceNotFound,
     WorkspaceRegistry,
 )
-from lia_core.inference.llamacpp import LocalInferenceClient, LocalModelError
+from lia_core.inference.factory import create_inference_client
+from lia_core.inference.llamacpp import LocalModelError
 from lia_core.memory.store import MemoryStore
 
 
@@ -41,7 +42,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     content: str
-    engine: str = "llama.cpp"
+    engine: str = "local"
     external_traffic: bool = False
 
 
@@ -89,8 +90,8 @@ def create_app(
     memory_path: Path | None = None,
 ) -> FastAPI:
     config = settings or Settings.from_env()
-    app = FastAPI(title="Lia Core", version="0.3.0")
-    app.state.inference = inference or LocalInferenceClient(config)
+    app = FastAPI(title="Lia Core", version="0.4.0")
+    app.state.inference = inference or create_inference_client(config)
     app.state.memory = MemoryStore(memory_path or config.data_dir / "memory.sqlite3")
     app.state.workspaces = WorkspaceRegistry(config.dev_workspaces)
     app.state.inference_configured = bool(config.llm_base_url)
@@ -118,7 +119,10 @@ def create_app(
                     "message": "O modelo local não está disponível. Inicie o servidor llama.cpp.",
                 },
             ) from exc
-        return ChatResponse(content=answer)
+        return ChatResponse(
+            content=answer,
+            engine=getattr(request.app.state.inference, "engine_name", "local"),
+        )
 
     @app.post("/api/v1/memories", response_model=MemoryItem, status_code=status.HTTP_201_CREATED)
     async def create_memory(payload: MemoryCreate, request: Request) -> MemoryItem:
