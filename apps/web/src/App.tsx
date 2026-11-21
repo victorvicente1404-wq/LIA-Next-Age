@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import DevPanel from "./DevPanel";
+import MemoryPanel from "./MemoryPanel";
 
 type Message = {
   role: "user" | "assistant";
@@ -11,13 +12,15 @@ type CoreHealth = {
   inference: string;
 };
 
+type ActiveTab = "chat" | "memory" | "dev";
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<CoreHealth | null>(null);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"chat" | "dev">("chat");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("chat");
 
   useEffect(() => {
     let active = true;
@@ -104,6 +107,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={activeTab === "memory" ? "tab active" : "tab"}
+            onClick={() => setActiveTab("memory")}
+          >
+            Memória
+          </button>
+          <button
+            type="button"
             className={activeTab === "dev" ? "tab active" : "tab"}
             onClick={() => setActiveTab("dev")}
           >
@@ -113,6 +123,8 @@ export default function App() {
 
         {activeTab === "dev" ? (
           <DevPanel />
+        ) : activeTab === "memory" ? (
+          <MemoryPanel />
         ) : (
           <>
             <div className="conversation" aria-live="polite">
