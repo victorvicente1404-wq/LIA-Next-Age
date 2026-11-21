@@ -111,7 +111,8 @@ class LiaOrchestrator:
                 )
                 if selected is None:
                     return self._result(
-                        "Não reconheci esse perfil especializado. Nenhuma permissão adicional foi concedida.",
+                        "Não reconheci esse perfil especializado. "
+                        "Nenhuma permissão adicional foi concedida.",
                         calls,
                         step + 1,
                         plan,
@@ -180,7 +181,8 @@ class LiaOrchestrator:
                                 ensure_ascii=False,
                             )
                             + "\nExecute a próxima etapa segura usando apenas ferramentas "
-                            "disponíveis. Se não houver ferramenta apropriada, explique a limitação."
+                            "disponíveis. Se não houver ferramenta apropriada, "
+                            "explique a limitação."
                         ),
                     }
                 )
