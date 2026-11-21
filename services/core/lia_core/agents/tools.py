@@ -89,9 +89,12 @@ class MemorySearchTool:
         return ToolResult(self.spec.name, "\n".join(lines))
 
 
-def build_default_registry(memory: MemoryStore) -> ToolRegistry:
+def build_default_registry(
+    memory: MemoryStore, *, allowed_tools: set[str] | frozenset[str] | None = None
+) -> ToolRegistry:
     """Only low-risk, local, read-only tools are exposed by default."""
-    registry = ToolRegistry(ToolPolicy({"calculator", "memory_search"}))
+    allowed = {"calculator", "memory_search"} if allowed_tools is None else set(allowed_tools)
+    registry = ToolRegistry(ToolPolicy(allowed))
     for tool in (CalculatorTool(), MemorySearchTool(memory)):
         registry.register(tool)
     return registry
