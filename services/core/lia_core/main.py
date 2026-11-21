@@ -450,12 +450,16 @@ def create_app(
             and request.headers["origin"].rstrip("/") not in config.allowed_origins
         ):
             raise HTTPException(status_code=403, detail="Aprovação exige acesso local confiável.")
+        if not config.pairing_enabled:
+            return []
         return request.app.state.pairing.list_pending()
 
     @app.post("/api/v1/pairing/requests/{request_id}/approve")
     async def approve_pairing_request(
         request_id: str, payload: PairingApproval, request: Request, response: Response
     ) -> dict[str, object]:
+        if not config.pairing_enabled:
+            raise HTTPException(status_code=404, detail="Pareamento de dispositivos está desativado.")
         if not is_loopback(request):
             raise HTTPException(status_code=403, detail="Aprovação exige acesso local.")
         try:
