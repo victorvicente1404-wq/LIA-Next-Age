@@ -101,7 +101,7 @@ class PairingStore:
         now = int(time.time())
         request_id = uuid.uuid4().hex
         code = secrets.token_urlsafe(9)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute(
                 "DELETE FROM pairing_requests WHERE expires_at < ? OR status != 'pending'",
                 (now - 3600,),
@@ -131,7 +131,7 @@ class PairingStore:
 
     def list_pending(self) -> list[dict[str, Any]]:
         now = int(time.time())
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             rows = connection.execute(
                 """
                 SELECT id, device_name, scopes, created_at, expires_at, attempts
@@ -157,7 +157,7 @@ class PairingStore:
         now = int(time.time())
         token = secrets.token_urlsafe(32)
         device_id = uuid.uuid4().hex
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT * FROM pairing_requests WHERE id = ?",
@@ -210,7 +210,7 @@ class PairingStore:
         if not token or len(token) > 256:
             return None
         now = int(time.time())
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             row = connection.execute(
                 """
                 SELECT id, name, scopes, expires_at
@@ -251,7 +251,7 @@ class PairingStore:
         expected = hmac.new(token.encode("utf-8"), message, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, signature.lower()):
             return False
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 "DELETE FROM used_request_nonces WHERE expires_at < ?",
@@ -269,7 +269,7 @@ class PairingStore:
         return True
 
     def revoke(self, device_id: str) -> bool:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             cursor = connection.execute(
                 """
                 UPDATE paired_devices SET revoked_at = ?
@@ -281,7 +281,7 @@ class PairingStore:
 
     def list_devices(self) -> list[dict[str, Any]]:
         now = int(time.time())
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             rows = connection.execute(
                 """
                 SELECT id, name, scopes, created_at, expires_at, revoked_at
