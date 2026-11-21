@@ -102,7 +102,7 @@ class LocalVoice:
             "audio/flac": "flac",
         }[normalized_type]
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds, trust_env=False) as client:
                 response = await client.post(
                     self.stt_url,
                     files={"file": (f"lia-recording.{extension}", audio, normalized_type)},
