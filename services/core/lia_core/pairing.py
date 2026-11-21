@@ -241,7 +241,7 @@ class PairingStore:
         now = int(time.time())
         if abs(now - issued_at) > 60 or not 16 <= len(nonce) <= 128:
             return False
-        message = f"{method.upper()}\\n{path_and_query}\\n{timestamp}\\n{nonce}".encode()
+        message = f"{method.upper()}\n{path_and_query}\n{timestamp}\n{nonce}".encode()
         expected = hmac.new(device["signing_key"], message, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, signature.lower()):
             return False
