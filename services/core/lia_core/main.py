@@ -335,6 +335,12 @@ def create_app(
                 media_type="application/json",
             )
         path = request.url.path
+        if path.startswith("/api/v1/conversations/") and request.method == "DELETE":
+            return Response(
+                content='{"detail":"Dispositivos pareados não podem excluir conversas."}',
+                status_code=403,
+                media_type="application/json",
+            )
         if path.startswith(("/api/v1/dev/", "/api/v1/dev-")):
             return Response(
                 content='{"detail":"Lia Dev permanece disponível somente no dispositivo principal."}',
