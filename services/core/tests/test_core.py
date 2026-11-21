@@ -315,3 +315,72 @@ def test_lia_dev_rollback_survives_core_restart(tmp_path: Path):
 
     assert rolled_back.status_code == 200
     assert source.read_text(encoding="utf-8") == "print('before')\n"
+
+
+def test_lia_dev_lists_only_fixed_tasks_and_requires_approval(tmp_path: Path):
+    import shutil
+    import subprocess
+
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    if not shutil.which("git"):
+        return
+    subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+
+    with build_client(tmp_path, dev_workspaces=(workspace,)) as client:
+        tasks = client.get("/api/v1/dev/workspaces/workspace-1/tasks")
+        assert tasks.status_code == 200
+        task_ids = {item["task"] for item in tasks.json()}
+        assert "git_status" in task_ids
+        assert all("command" in item for item in tasks.json())
+
+        proposal = client.post(
+            "/api/v1/dev/workspaces/workspace-1/tasks",
+            json={"task": "git_status"},
+        )
+        assert proposal.status_code == 201
+        proposal_data = proposal.json()
+        assert proposal_data["command"].endswith("status --short --branch")
+
+        cancelled = client.delete(
+            f"/api/v1/dev/tasks/{proposal_data['proposal_id']}"
+        )
+        execution = client.post(
+            f"/api/v1/dev/tasks/{proposal_data['proposal_id']}/execute"
+        )
+
+    assert cancelled.status_code == 204
+    assert execution.status_code == 404
+
+
+def test_lia_dev_task_executes_only_after_approval_and_only_once(tmp_path: Path):
+    import shutil
+    import subprocess
+
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    if not shutil.which("git"):
+        return
+    subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+
+    with build_client(tmp_path, dev_workspaces=(workspace,)) as client:
+        rejected = client.post(
+            "/api/v1/dev/workspaces/workspace-1/tasks",
+            json={"task": "python -c"},
+        )
+        proposal = client.post(
+            "/api/v1/dev/workspaces/workspace-1/tasks",
+            json={"task": "git_status"},
+        ).json()
+        result = client.post(
+            f"/api/v1/dev/tasks/{proposal['proposal_id']}/execute"
+        )
+        repeated = client.post(
+            f"/api/v1/dev/tasks/{proposal['proposal_id']}/execute"
+        )
+
+    assert rejected.status_code == 400
+    assert result.status_code == 200
+    assert result.json()["success"] is True
+    assert result.json()["return_code"] == 0
+    assert repeated.status_code == 404
