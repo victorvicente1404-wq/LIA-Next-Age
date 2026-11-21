@@ -34,7 +34,7 @@ def test_pairing_store_approves_once_persists_hash_and_revokes(tmp_path: Path):
     approved = store.approve(request["request_id"], request["pairing_code"])
     assert request["pairing_code"]
     assert set(approved["scopes"]) == {"chat", "voice"}
-    assert store.authenticate(request["pairing_code"])["device_id"] == approved["device_id"]
+    assert store.authenticate(approved["device_id"])["device_id"] == approved["device_id"]
     assert request["pairing_code"].encode() not in (tmp_path / "pairing.sqlite3").read_bytes()
 
     with pytest.raises(PairingError):
@@ -58,12 +58,15 @@ def test_pairing_code_attempt_limit_locks_request(tmp_path: Path):
         store.approve(request["request_id"], request["pairing_code"])
 
 
-def signed_headers(token: str, method: str, path: str, nonce: str) -> dict[str, str]:
+def signed_headers(
+    device_id: str, pairing_code: str, method: str, path: str, nonce: str
+) -> dict[str, str]:
     timestamp = str(int(time.time()))
     message = f"{method.upper()}\n{path}\n{timestamp}\n{nonce}".encode()
-    signature = hmac.new(token.encode("utf-8"), message, hashlib.sha256).hexdigest()
+    signing_key = hashlib.sha256(pairing_code.encode()).digest()
+    signature = hmac.new(signing_key, message, hashlib.sha256).hexdigest()
     return {
-        "Authorization": f"Bearer {token}",
+        "X-Lia-Device-ID": device_id,
         "X-Lia-Timestamp": timestamp,
         "X-Lia-Nonce": nonce,
         "X-Lia-Signature": signature,
@@ -148,9 +151,10 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     assert approved.headers["cache-control"] == "no-store"
     assert "access_token" not in approved.json()
     token = created["pairing_code"]
+    device_id = approved.json()["device_id"]
 
     path = "/api/v1/chat"
-    headers = signed_headers(token, "POST", path, "nonce-123456789012")
+    headers = signed_headers(device_id, token, "POST", path, "nonce-123456789012")
     payload = {"messages": [{"role": "user", "content": "Oi"}]}
     first = remote.post(path, headers=headers, json=payload)
     assert first.status_code == 200
@@ -179,13 +183,13 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     assert delete_conversation.status_code == 403
     no_memory_scope = remote.get(
         "/api/v1/memories",
-        headers=signed_headers(token, "GET", "/api/v1/memories", "nonce-123456789013"),
+        headers=signed_headers(device_id, token, "GET", "/api/v1/memories", "nonce-123456789013"),
     )
     assert no_memory_scope.status_code == 403
 
     dev_access = remote.get(
         "/api/v1/dev/workspaces",
-        headers=signed_headers(token, "GET", "/api/v1/dev/workspaces", "nonce-123456789014"),
+        headers=signed_headers(device_id, token, "GET", "/api/v1/dev/workspaces", "nonce-123456789014"),
     )
     assert dev_access.status_code == 403
 
@@ -193,7 +197,7 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     assert local.delete(f"/api/v1/pairing/devices/{device_id}").status_code == 204
     revoked = remote.post(
         path,
-        headers=signed_headers(token, "POST", path, "nonce-123456789015"),
+        headers=signed_headers(device_id, token, "POST", path, "nonce-123456789015"),
         json=payload,
     )
     assert revoked.status_code == 401
@@ -212,6 +216,7 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     memory_response = remote.get(
         "/api/v1/memories",
         headers=signed_headers(
+            memory_approval.json()["device_id"],
             memory_request["pairing_code"],
             "GET",
             "/api/v1/memories",
