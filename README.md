@@ -52,7 +52,7 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] Lia Dev: tarefas tipadas e predefinidas (Git status/diff, pytest, Ruff e build web), com prévia, aprovação separada, timeout e saída limitada.
 - [x] Lia Dev: operações Git tipadas (branch, commit, checkout e revert) com revisão e aprovação.
 - [x] Primeira camada de voz local: captura manual no navegador, STT whisper.cpp local e TTS Piper opcional, sem fallback remoto (validação Android ainda pendente).
-- [x] API inicial de pareamento: aprovação local, HTTPS obrigatório para acesso remoto, escopos chat/voz e leitura de memória opcional, digest secreto armazenado como hash, revogação, assinatura HMAC com nonce anti-replay e proteção de origem. O helper web persiste uma CryptoKey não extraível no IndexedDB; tela de pareamento e cliente Android ainda pendentes.
+- [x] API inicial de pareamento: aprovação local, HTTPS obrigatório para acesso remoto, escopos chat/voz e leitura de memória opcional, digest secreto armazenado como hash, revogação, assinatura HMAC com nonce anti-replay e proteção de origem. O helper web persiste uma CryptoKey não extraível no IndexedDB, e a aba Dispositivos já permite aprovar e revogar localmente; a solicitação remota e o cliente Android ainda pendentes.
 - [ ] Integrar percepção e conectores opcionais.
 - [x] Primeira versão do orquestrador cognitivo próprio da Lia, com loop limitado e ferramentas locais allowlisted; OpenJarvis opcional como runtime.
 - [x] Perfis especialistas subordinados ao mesmo orquestrador (geral, memória e engenharia), com allowlists específicas e sem modelos ou memórias separados.
