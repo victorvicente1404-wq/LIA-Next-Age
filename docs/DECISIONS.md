@@ -37,7 +37,7 @@
 2. Produzir um plano estruturado com operações tipadas.
 3. Exibir comandos, arquivos afetados e diff previsto.
 4. Solicitar aprovação explícita para escrita, instalação, execução ou operações externas.
-5. Executar em sandbox com limites de tempo, saída e recursos.
+5. Executar com limites de tempo e saída. Até existir uma sandbox em nível de sistema operacional implementada e validada, comandos aprovados rodam como processos locais e devem ser tratados como código confiável do projeto.
 6. Registrar o resultado e oferecer rollback por Git quando aplicável.
 
 **Proibido:** transformar texto livre do modelo em comando de shell com `shell=True`, aceitar caminhos arbitrários ou ativar autonomia irrestrita por padrão.
