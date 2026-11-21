@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import DevPanel from "./DevPanel";
 
 type Message = {
   role: "user" | "assistant";
@@ -16,6 +17,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<CoreHealth | null>(null);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<"chat" | "dev">("chat");
 
   useEffect(() => {
     let active = true;
@@ -92,54 +94,77 @@ export default function App() {
           </div>
         </header>
 
-        <div className="conversation" aria-live="polite">
-          {messages.length === 0 ? (
-            <div className="welcome">
-              <div className="welcome-orb">L</div>
-              <h2>Olá. Eu sou a Lia.</h2>
-              <p>
-                Estou sendo construída para funcionar no seu dispositivo, com memória própria
-                e sem depender de cotas de inteligência artificial na nuvem.
-              </p>
-              <div className="feature-row">
-                <span>IA local</span>
-                <span>Memória independente</span>
-                <span>Lia Dev</span>
-              </div>
-            </div>
-          ) : (
-            <div className="messages">
-              {messages.map((message, index) => (
-                <article className={`message ${message.role}`} key={index}>
-                  <span className="message-author">{message.role === "user" ? "Você" : "Lia"}</span>
-                  <p>{message.content}</p>
-                </article>
-              ))}
-              {busy && <div className="thinking">Lia está pensando localmente…</div>}
-            </div>
-          )}
-        </div>
-
-        {error && <div className="error-banner" role="alert">{error}</div>}
-
-        <form className="composer" onSubmit={sendMessage}>
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Converse com a Lia…"
-            aria-label="Mensagem para Lia"
-            rows={2}
-            disabled={busy}
-          />
-          <button type="submit" disabled={busy || !draft.trim()}>
-            {busy ? "…" : "Enviar"}
+        <nav className="tabs" aria-label="Seções da Lia">
+          <button
+            type="button"
+            className={activeTab === "chat" ? "tab active" : "tab"}
+            onClick={() => setActiveTab("chat")}
+          >
+            Conversa
           </button>
-        </form>
-        <footer className="footer-note">
-          {health?.inference === "local_endpoint_configured"
-            ? "Inferência configurada para o servidor local · nenhum fallback remoto"
-            : "Inicie o núcleo Python e o servidor llama.cpp para conversar"}
-        </footer>
+          <button
+            type="button"
+            className={activeTab === "dev" ? "tab active" : "tab"}
+            onClick={() => setActiveTab("dev")}
+          >
+            Lia Dev
+          </button>
+        </nav>
+
+        {activeTab === "dev" ? (
+          <DevPanel />
+        ) : (
+          <>
+            <div className="conversation" aria-live="polite">
+              {messages.length === 0 ? (
+                <div className="welcome">
+                  <div className="welcome-orb">L</div>
+                  <h2>Olá. Eu sou a Lia.</h2>
+                  <p>
+                    Estou sendo construída para funcionar no seu dispositivo, com memória própria
+                    e sem depender de cotas de inteligência artificial na nuvem.
+                  </p>
+                  <div className="feature-row">
+                    <span>IA local</span>
+                    <span>Memória independente</span>
+                    <span>Lia Dev</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="messages">
+                  {messages.map((message, index) => (
+                    <article className={`message ${message.role}`} key={index}>
+                      <span className="message-author">{message.role === "user" ? "Você" : "Lia"}</span>
+                      <p>{message.content}</p>
+                    </article>
+                  ))}
+                  {busy && <div className="thinking">Lia está pensando localmente…</div>}
+                </div>
+              )}
+            </div>
+
+            {error && <div className="error-banner" role="alert">{error}</div>}
+
+            <form className="composer" onSubmit={sendMessage}>
+              <textarea
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="Converse com a Lia…"
+                aria-label="Mensagem para Lia"
+                rows={2}
+                disabled={busy}
+              />
+              <button type="submit" disabled={busy || !draft.trim()}>
+                {busy ? "…" : "Enviar"}
+              </button>
+            </form>
+            <footer className="footer-note">
+              {health?.inference === "local_endpoint_configured"
+                ? "Inferência configurada para o servidor local · nenhum fallback remoto"
+                : "Inicie o núcleo Python e o servidor llama.cpp para conversar"}
+            </footer>
+          </>
+        )}
       </section>
     </main>
   );
