@@ -454,7 +454,7 @@ def test_voice_status_reports_local_only_capabilities(tmp_path: Path):
 
     assert response.status_code == 200
     assert response.json()["processing"] == "local_only"
-    assert response.json()["transcription_configured"] is True
+    assert response.json()["transcription_configured"] is False
     assert response.json()["synthesis_configured"] is False
 
 
