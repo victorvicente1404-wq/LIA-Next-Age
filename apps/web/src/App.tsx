@@ -10,6 +10,7 @@ type Message = {
   externalTraffic?: boolean;
   agent?: string;
   toolCalls?: number;
+  plan?: string[];
 };
 
 type Conversation = {
@@ -129,6 +130,7 @@ export default function App() {
         memories_used?: number;
         agent?: string;
         tool_calls?: number;
+        plan?: string[];
         detail?: string | { message?: string };
       };
       if (!response.ok) {
@@ -147,6 +149,7 @@ export default function App() {
             externalTraffic: data.external_traffic ?? false,
             agent: data.agent ?? "simple",
             toolCalls: data.tool_calls ?? 0,
+            plan: data.plan ?? [],
           },
         ]);
         const history = await fetch("/api/v1/conversations?limit=30");
@@ -281,7 +284,7 @@ export default function App() {
                       {message.role === "assistant" && (
                         <small className="message-meta">
                           {message.engine ?? "local"} · {message.externalTraffic ? "tráfego externo" : "somente local"}
-                          {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}{message.agent && ` · ${message.agent}`}{(message.toolCalls ?? 0) > 0 && ` · ${message.toolCalls} ferramentas`}
+                          {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}{message.agent && ` · ${message.agent}`}{(message.toolCalls ?? 0) > 0 && ` · ${message.toolCalls} ferramentas`}{message.plan && message.plan.length > 0 && ` · plano: ${message.plan.join(" → ")}`}
                         </small>
                       )}
                     </article>
