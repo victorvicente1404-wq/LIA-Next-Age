@@ -42,7 +42,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     content: str
-    engine: str = "local"
+    engine: str = "llama.cpp"
     external_traffic: bool = False
 
 
@@ -121,7 +121,7 @@ def create_app(
             ) from exc
         return ChatResponse(
             content=answer,
-            engine=getattr(request.app.state.inference, "engine_name", "local"),
+            engine=getattr(request.app.state.inference, "engine_name", "llama.cpp"),
         )
 
     @app.post("/api/v1/memories", response_model=MemoryItem, status_code=status.HTTP_201_CREATED)
