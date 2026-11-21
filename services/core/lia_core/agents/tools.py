@@ -3,9 +3,7 @@ from __future__ import annotations
 import ast
 import math
 import operator
-from typing import Any
-
-from lia_core.agents.registry import LiaTool, ToolPolicy, ToolRegistry, ToolResult, ToolSpec
+from lia_core.agents.registry import ToolPolicy, ToolRegistry, ToolResult, ToolSpec
 from lia_core.memory.store import MemoryStore
 
 
