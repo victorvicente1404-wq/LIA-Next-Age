@@ -76,7 +76,6 @@ class GitOperationManager:
         if env_overrides:
             command_env.update(env_overrides)
         run_options: dict[str, Any] = {
-            "check": False,
             "cwd": root,
             "stdout": subprocess.PIPE,
             "stderr": subprocess.STDOUT,
