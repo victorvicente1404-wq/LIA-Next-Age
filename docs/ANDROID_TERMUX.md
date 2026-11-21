@@ -51,8 +51,11 @@ pip install -e '.[dev]'
 export LIA_LLM_BASE_URL=http://127.0.0.1:8080/v1
 export LIA_LLM_MODEL=local-model
 export LIA_DATA_DIR="$HOME/.lia"
+export LIA_DEV_WORKSPACES="$HOME/projects/LIA-Next-Age"
 uvicorn lia_core.main:app --host 127.0.0.1 --port 8000
 ```
+
+Ajuste `LIA_DEV_WORKSPACES` para o caminho real do repositório no seu aparelho. Essa allowlist dá à Lia Dev permissão somente de leitura para navegar e abrir arquivos desse projeto. Separe várias pastas com `:` no Linux/Termux.
 
 Se o executável compatível não se chamar `python3.12`, use o comando da versão Python >=3.10 e <3.14 que você instalou.
 
@@ -78,10 +81,12 @@ A interface consulta o núcleo pela proxy local do Vite. O serviço Python fica 
 - Envie uma mensagem curta.
 - Se o modelo não estiver ativo, a API retorna erro explícito; ela não tenta Groq, Gemini, OpenRouter ou outro serviço remoto.
 - Memórias explícitas ficam no SQLite dentro de `$HOME/.lia`.
+- Os workspaces configurados aparecem em `GET /api/v1/dev/workspaces`; a API de Lia Dev permite listar pastas e ler arquivos de texto.
 
 ## Segurança e limites desta etapa
 
 - Os servidores são vinculados ao loopback. Não troque para `0.0.0.0` nem exponha portas na rede: autenticação e pareamento de dispositivos ainda não foram implementados.
 - A memória já persiste, mas a extração automática e a injeção contextual ainda não foram implementadas.
-- Voz, visão, automações domésticas e Lia Dev ainda são etapas futuras.
-- Esta fundação ainda precisa ser compilada e testada no ambiente real do aparelho.
+- Lia Dev é somente leitura por enquanto; ainda não altera arquivos nem executa comandos.
+- Voz, visão e automações domésticas ainda são etapas futuras.
+- Esta fundação ainda precisa ser validada no ambiente real do aparelho.
