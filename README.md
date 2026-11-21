@@ -16,7 +16,7 @@ Assistente pessoal local-first, modular e extensível.
 1. **Interface:** aplicação web responsiva (Vite/React), utilizável no celular e no desktop.
 2. **Núcleo:** API Python para conversação, roteamento, políticas e coordenação de ferramentas.
 3. **Runtime local:** adaptador OpenJarvis opcional para seu motor LlamaCppEngine; adaptador HTTP direto para llama.cpp como caminho compatível e fallback exclusivamente local.
-4. **Memória:** SQLite local, independente do modelo, com operações explícitas de criar, pesquisar e apagar.
+4. **Memória:** SQLite local, independente do modelo, com gerenciamento explícito e recuperação contextual de preferências e memórias relevantes.
 5. **Lia Dev:** interface de exploração e API de leitura em workspaces explicitamente autorizados; diffs, alterações e terminal controlado serão etapas posteriores.
 6. **Percepção e voz:** módulos opcionais para áudio, câmera e contexto, sempre com indicadores e consentimento.
 7. **Conectores:** adaptadores independentes para WhatsApp, Google e dispositivos domésticos.
@@ -43,10 +43,9 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] API Python e health check.
 - [x] Adaptador direto local para llama.cpp.
 - [x] Adaptador opcional para OpenJarvis LlamaCppEngine, selecionável por configuração.
-- [x] Memória SQLite independente do modelo e com gerenciamento explícito.
+- [x] Memória SQLite independente do modelo, gerenciamento explícito e recuperação contextual.
 - [x] Lia Dev: listar workspaces autorizados, navegar pastas e ler arquivos de texto com limites.
 - [x] CI: testes Python, Ruff e build web.
-- [ ] Recuperar memórias relevantes no contexto de conversa, com política de privacidade.
 - [ ] Lia Dev: diff/patch revisável, aprovação, sandbox e operações Git.
 - [ ] Integrar voz, percepção e conectores opcionais.
 - [ ] Integrar agentes e primitivas OpenJarvis sem instalar dependências pesadas obrigatórias no Android.
