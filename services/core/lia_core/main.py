@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import hashlib
-import hmac
 import ipaddress
 import time
 from typing import Literal, Protocol
@@ -306,7 +304,7 @@ def create_app(
 
     @app.middleware("http")
     async def enforce_device_access(request: Request, call_next):
-        if not config.pairing_enabled or not request.url.path.startswith("/api/v1/"):
+        if not request.url.path.startswith("/api/v1/"):
             return await call_next(request)
         if is_loopback(request):
             local_origin = request.headers.get("origin")
@@ -317,6 +315,12 @@ def create_app(
                     media_type="application/json",
                 )
             return await call_next(request)
+        if not config.pairing_enabled:
+            return Response(
+                content='{"detail":"Acesso remoto está desativado. Habilite pareamento e HTTPS explicitamente."}',
+                status_code=403,
+                media_type="application/json",
+            )
         if request.url.scheme != "https":
             return Response(
                 content='{"detail":"Acesso remoto exige HTTPS com certificado válido."}',
