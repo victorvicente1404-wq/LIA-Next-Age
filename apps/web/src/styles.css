@@ -163,3 +163,26 @@ button, textarea, select, input { font: inherit; }
   .conversation-toolbar { gap: 7px; padding: 10px 12px; }
   .conversation-toolbar button { padding: 9px 8px; font-size: 10px; }
 }
+
+
+.dev-git { display: grid; gap: 14px; padding: 18px; border: 1px solid #303746; border-radius: 16px; background: #171b24; }
+.git-status-card { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 12px; border: 1px solid #343b4a; border-radius: 12px; background: #1c222d; }
+.git-status-card > div { display: grid; gap: 4px; min-width: 100px; }
+.git-status-card span { color: #929bad; font-size: 11px; }
+.git-status-card strong, .git-status-card code { color: #e6e9f0; font-size: 12px; }
+.git-status-card pre { width: 100%; max-height: 120px; overflow: auto; margin: 0; color: #e6c18b; font-size: 11px; }
+.git-actions-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.git-action { display: grid; align-content: start; gap: 8px; padding: 12px; border: 1px solid #303746; border-radius: 12px; background: #1b202a; }
+.git-action label { color: #cbd1dd; font-size: 12px; font-weight: 600; }
+.git-action input, .git-action select, .git-action textarea { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid #3a4252; border-radius: 9px; color: #e6e9f0; background: #141923; font: inherit; font-size: 12px; }
+.git-action p { margin: 0; color: #929bad; font-size: 11px; line-height: 1.5; }
+.git-action button { padding: 9px 11px; border: 1px solid #66523d; border-radius: 9px; color: #e5c69e; background: #2c261f; font-size: 11px; cursor: pointer; }
+.git-recent { display: grid; gap: 8px; }
+.git-recent > strong { color: #cbd1dd; font-size: 12px; }
+.git-recent > div { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid #303746; font-size: 11px; }
+.git-recent code { color: #d8ad78; }
+.git-recent span { color: #c3c9d5; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .git-actions-grid { grid-template-columns: minmax(0, 1fr); }
+  .dev-git { padding: 12px; }
+}
