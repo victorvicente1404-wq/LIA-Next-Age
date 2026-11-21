@@ -146,17 +146,18 @@ def test_git_commit_rejects_sensitive_paths_and_globs(tmp_path: Path):
     assert glob.status_code == 400
     assert unsafe_checkout.status_code == 400
 
+
 def test_git_commit_rejects_directory_path_to_prevent_sensitive_file_bypass(tmp_path: Path):
     workspace = tmp_path / "project"
     make_repo(workspace)
     source_dir = workspace / "src"
     source_dir.mkdir()
-    (source_dir / "app.py").write_text("print('safe')\\n", encoding="utf-8")
-    (source_dir / ".env").write_text("TOKEN=secret\\n", encoding="utf-8")
+    (source_dir / "app.py").write_text("print('safe')\n", encoding="utf-8")
+    (source_dir / ".env").write_text("TOKEN=secret\n", encoding="utf-8")
     git(workspace, "add", "src/app.py", "src/.env")
     git(workspace, "commit", "-m", "add source files")
-    (source_dir / "app.py").write_text("print('changed')\\n", encoding="utf-8")
-    (source_dir / ".env").write_text("TOKEN=changed-secret\\n", encoding="utf-8")
+    (source_dir / "app.py").write_text("print('changed')\n", encoding="utf-8")
+    (source_dir / ".env").write_text("TOKEN=changed-secret\n", encoding="utf-8")
 
     with client_for(tmp_path, workspace) as client:
         proposal = client.post(
@@ -167,4 +168,3 @@ def test_git_commit_rejects_directory_path_to_prevent_sensitive_file_bypass(tmp_
     assert proposal.status_code == 400
     assert "arquivos regulares" in proposal.json()["detail"]
     assert "src/.env" in git(workspace, "status", "--short")
-\n
