@@ -48,6 +48,13 @@
 
 **Motivo:** OpenJarvis já fornece motores OpenAI-compatible, agentes, registries, ferramentas e memória pesquisável. Porém, seu pacote completo e algumas extensões nativas podem ser pesados para o Android. A Lia deve aproveitar essas primitivas quando instaladas, sem tornar o funcionamento básico dependente delas.
 
+**Implementação inicial de Git:**
+- Operações tipadas disponíveis: criar branch, trocar para branch local não protegida, commit de arquivos rastreados explicitamente selecionados e reverter o commit atual criando um novo commit inverso.
+- `main` e `master` são protegidas contra commit e reversão; troca para essas branches é bloqueada na Lia Dev.
+- Cada operação exige proposta e aprovação separada; propostas expiram em cinco minutos e são de uso único.
+- Trocas/criações de branch e reversões exigem árvore de trabalho limpa. Commits validam o diff selecionado, não incluem paths staged não selecionados e bloqueiam arquivos secretos e pathspecs com curingas.
+- Git hooks são desabilitados durante essas operações. Isso não substitui uma sandbox de sistema operacional.
+
 **Próximos passos:**
 - Reutilizar agentes simples/orchestrator e o runtime de ferramentas do OpenJarvis após validar a instalação no Termux.
 - Manter os contratos de chat, memória e permissões pertencentes à aplicação Lia.
