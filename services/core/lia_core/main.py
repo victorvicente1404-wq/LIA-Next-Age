@@ -406,7 +406,7 @@ def create_app(
         status_code=status.HTTP_201_CREATED,
     )
     async def create_pairing_request(
-        payload: PairingRequestCreate, request: Request
+        payload: PairingRequestCreate, request: Request, response: Response
     ) -> PairingRequestResponse:
         if not config.pairing_enabled:
             raise HTTPException(status_code=404, detail="Pareamento de dispositivos está desativado.")
@@ -429,6 +429,8 @@ def create_app(
             )
         except PairingError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
         return PairingRequestResponse(**result)
 
     @app.get("/api/v1/pairing/requests")
@@ -442,12 +444,15 @@ def create_app(
 
     @app.post("/api/v1/pairing/requests/{request_id}/approve")
     async def approve_pairing_request(
-        request_id: str, payload: PairingApproval, request: Request
+        request_id: str, payload: PairingApproval, request: Request, response: Response
     ) -> dict[str, object]:
         if not is_loopback(request):
             raise HTTPException(status_code=403, detail="Aprovação exige acesso local.")
         try:
-            return request.app.state.pairing.approve(request_id, payload.pairing_code)
+            result = request.app.state.pairing.approve(request_id, payload.pairing_code)
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Pragma"] = "no-cache"
+            return result
         except PairingError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
