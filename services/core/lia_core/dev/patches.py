@@ -134,6 +134,18 @@ class PatchManager:
         self._purge_expired()
         return self._proposals.pop(proposal_id, None) is not None
 
+    def list_applied(self, workspace_id: str | None = None) -> list[dict[str, str]]:
+        return [
+            {
+                "operation_id": item.id,
+                "workspace_id": item.workspace_id,
+                "path": item.path,
+                "status": "applied",
+            }
+            for item in self._applied.values()
+            if workspace_id is None or item.workspace_id == workspace_id
+        ]
+
     def propose(self, workspace_id: str, relative_path: str, content: str) -> dict[str, object]:
         self._purge_expired()
         if len(content.encode("utf-8")) > MAX_FILE_BYTES:
