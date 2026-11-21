@@ -284,7 +284,10 @@ export default function App() {
                       {message.role === "assistant" && (
                         <small className="message-meta">
                           {message.engine ?? "local"} · {message.externalTraffic ? "tráfego externo" : "somente local"}
-                          {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}\n                          {message.agent && ` · ${message.agent}`}\n                          {(message.toolCalls ?? 0) > 0 && ` · ${message.toolCalls} ferramentas`}\n                          {message.plan && message.plan.length > 0 && ` · plano: ${message.plan.join(" → ")}`}
+                          {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}
+                          {message.agent && ` · ${message.agent}`}
+                          {(message.toolCalls ?? 0) > 0 && ` · ${message.toolCalls} ferramentas`}
+                          {message.plan && message.plan.length > 0 && ` · plano: ${message.plan.join(" → ")}`}
                         </small>
                       )}
                     </article>
