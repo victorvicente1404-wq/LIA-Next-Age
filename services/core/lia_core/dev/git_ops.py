@@ -166,7 +166,7 @@ class GitOperationManager:
             path = Path(raw)
             if path.is_absolute() or not raw.strip() or path.as_posix() in {"", ".", ".."} or any(part in {"", ".", ".."} for part in path.parts):
                 raise GitOperationError("Caminho de arquivo inválido.")
-            if any(char in raw for char in "*?[]:") or "\\\\" in raw:
+            if any(char in raw for char in "*?[]:") or "\\" in raw:
                 raise GitOperationError("Use caminhos literais, sem padrões ou pathspecs Git.")
             if any(
                 part.lower() in SENSITIVE_PARTS
