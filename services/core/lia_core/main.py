@@ -378,6 +378,29 @@ def create_app(
                 status_code=403,
                 media_type="application/json",
             )
+
+        # Remote access is an explicit allowlist. New API routes stay local by default.
+        conversation_parts = path.split("/")
+        is_conversation_detail = (
+            len(conversation_parts) == 5
+            and conversation_parts[1:4] == ["api", "v1", "conversations"]
+            and bool(conversation_parts[4])
+        )
+        remote_route_allowed = (
+            (path == "/api/v1/chat" and request.method == "POST")
+            or (path == "/api/v1/conversations" and request.method in {"GET", "POST"})
+            or (is_conversation_detail and request.method == "GET")
+            or (path == "/api/v1/voice/status" and request.method == "GET")
+            or (path == "/api/v1/voice/transcriptions" and request.method == "POST")
+            or (path == "/api/v1/voice/speech" and request.method == "POST")
+            or (path == "/api/v1/memories" and request.method == "GET")
+        )
+        if not remote_route_allowed:
+            return Response(
+                content='{"detail":"Esta rota não está autorizada para dispositivos remotos."}',
+                status_code=403,
+                media_type="application/json",
+            )
         if request.method == "OPTIONS":
             return Response(status_code=403)
         required_scope = "chat"
