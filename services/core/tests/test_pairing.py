@@ -178,6 +178,26 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     )
     assert revoked.status_code == 401
 
+    memory_request = remote.post(
+        "/api/v1/pairing/requests",
+        headers={"Origin": "https://lia.test"},
+        json={"device_name": "Tablet com memória", "scopes": ["chat", "memory:read"]},
+    ).json()
+    memory_device = local.post(
+        f"/api/v1/pairing/requests/{memory_request['request_id']}/approve",
+        json={"pairing_code": memory_request["pairing_code"]},
+    ).json()
+    memory_response = remote.get(
+        "/api/v1/memories",
+        headers=signed_headers(
+            memory_device["access_token"],
+            "GET",
+            "/api/v1/memories",
+            "nonce-123456789016",
+        ),
+    )
+    assert memory_response.status_code == 200
+
 
 def test_pairing_admin_endpoints_are_loopback_only(tmp_path: Path):
     app = build_pairing_app(tmp_path)
