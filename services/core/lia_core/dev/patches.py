@@ -137,7 +137,7 @@ class PatchManager:
             "path": operation.path,
             "restored_sha256": restored_sha,
             "status": "rolled_back",
-            "previous_version_backup": str(backup_path),
+            "backup_retained": True,
         }
 
     def _replace(
