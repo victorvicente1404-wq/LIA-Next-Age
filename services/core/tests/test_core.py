@@ -446,3 +446,24 @@ def test_legacy_chat_does_not_create_conversation_automatically(tmp_path: Path):
         )
         assert response.status_code == 200
         assert client.get("/api/v1/conversations").json() == []
+
+
+def test_voice_status_reports_local_only_capabilities(tmp_path: Path):
+    with build_client(tmp_path) as client:
+        response = client.get("/api/v1/voice/status")
+
+    assert response.status_code == 200
+    assert response.json()["processing"] == "local_only"
+    assert response.json()["transcription_configured"] is True
+    assert response.json()["synthesis_configured"] is False
+
+
+def test_voice_synthesis_endpoint_requires_local_piper_configuration(tmp_path: Path):
+    with build_client(tmp_path) as client:
+        response = client.post(
+            "/api/v1/voice/speech",
+            json={"text": "Olá, Lia!"},
+        )
+
+    assert response.status_code == 503
+
