@@ -303,6 +303,12 @@ def test_lia_dev_rollback_survives_core_restart(tmp_path: Path):
     assert source.read_text(encoding="utf-8") == "print('after')\n"
 
     with build_client(tmp_path, dev_workspaces=(workspace,)) as restarted_client:
+        available = restarted_client.get(
+            "/api/v1/dev/rollbacks", params={"workspace_id": "workspace-1"}
+        )
+        assert [item["operation_id"] for item in available.json()] == [
+            applied["operation_id"]
+        ]
         rolled_back = restarted_client.post(
             f"/api/v1/dev/patches/{applied['operation_id']}/rollback"
         )
