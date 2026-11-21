@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from lia_core.config import Settings
 from lia_core.dev.patches import PatchConflict, PatchManager, PatchNotFound
+from lia_core.dev.tasks import TaskNotAvailable, TaskProposalNotFound, TaskRunner
 from lia_core.dev.workspaces import (
     SensitiveWorkspaceFile,
     UnsafeWorkspacePath,
@@ -124,6 +125,34 @@ class DevRollbackItem(BaseModel):
     status: str
 
 
+class DevTaskRequest(BaseModel):
+    task: str = Field(min_length=1, max_length=40)
+
+
+class DevTaskProposal(BaseModel):
+    proposal_id: str
+    workspace_id: str
+    task: str
+    label: str
+    command: str
+    cwd: str
+    created_at: str
+    expires_in_seconds: str
+
+
+class DevTaskResult(BaseModel):
+    task: str
+    label: str
+    command: str
+    cwd: str
+    return_code: int | None
+    success: bool
+    timed_out: bool
+    duration_ms: int
+    output: str
+    output_truncated: bool
+
+
 def create_app(
     settings: Settings | None = None,
     inference: ChatEngine | None = None,
@@ -135,6 +164,7 @@ def create_app(
     app.state.memory = MemoryStore(memory_path or config.data_dir / "memory.sqlite3")
     app.state.workspaces = WorkspaceRegistry(config.dev_workspaces)
     app.state.patches = PatchManager(app.state.workspaces, config.data_dir / "dev-backups")
+    app.state.tasks = TaskRunner(app.state.workspaces)
     app.state.inference_configured = bool(config.llm_base_url)
 
     @app.get("/health", response_model=HealthResponse)
@@ -293,6 +323,51 @@ def create_app(
             raise HTTPException(status_code=404, detail="Proposta não encontrada ou expirada.")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
+
+    @app.get("/api/v1/dev/workspaces/{workspace_id}/tasks")
+    async def list_workspace_tasks(workspace_id: str, request: Request) -> list[dict[str, str]]:
+        try:
+            return request.app.state.tasks.list_tasks(workspace_id)
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+
+    @app.post(
+        "/api/v1/dev/workspaces/{workspace_id}/tasks",
+        response_model=DevTaskProposal,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def propose_workspace_task(
+        workspace_id: str, payload: DevTaskRequest, request: Request
+    ) -> DevTaskProposal:
+        try:
+            result = request.app.state.tasks.propose(workspace_id, payload.task)
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+        except TaskNotAvailable as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return DevTaskProposal(**result)
+
+    @app.delete(
+        "/api/v1/dev/tasks/{proposal_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def cancel_workspace_task(proposal_id: str, request: Request) -> Response:
+        if not request.app.state.tasks.cancel(proposal_id):
+            raise HTTPException(status_code=404, detail="Proposta de tarefa não encontrada ou expirada.")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.post("/api/v1/dev/tasks/{proposal_id}/execute", response_model=DevTaskResult)
+    async def execute_workspace_task(proposal_id: str, request: Request) -> DevTaskResult:
+        try:
+            result = request.app.state.tasks.execute(proposal_id)
+        except TaskProposalNotFound as exc:
+            raise HTTPException(status_code=404, detail="Proposta não encontrada, expirada ou já utilizada.") from exc
+        except WorkspaceNotFound as exc:
+            raise HTTPException(status_code=404, detail="Workspace não autorizado ou inexistente.") from exc
+        except TaskNotAvailable as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return DevTaskResult(**result)
 
     @app.get("/api/v1/dev/rollbacks", response_model=list[DevRollbackItem])
     async def list_workspace_rollbacks(
