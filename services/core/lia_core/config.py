@@ -13,7 +13,7 @@ class Settings:
     dev_workspaces: tuple[Path, ...] = ()
     runtime_backend: str = "auto"
     request_timeout_seconds: float = 120.0
-    voice_stt_url: str = "http://127.0.0.1:8178/inference"
+    voice_stt_url: str = ""
     voice_tts_binary: str = ""
     voice_tts_model: Path | None = None
     voice_timeout_seconds: float = 90.0
@@ -35,7 +35,7 @@ class Settings:
             runtime_backend=os.getenv("LIA_RUNTIME_BACKEND", "auto").strip().lower(),
             request_timeout_seconds=float(os.getenv("LIA_LLM_TIMEOUT", "120")),
             voice_stt_url=os.getenv(
-                "LIA_VOICE_STT_URL", "http://127.0.0.1:8178/inference"
+                "LIA_VOICE_STT_URL", ""
             ).strip(),
             voice_tts_binary=os.getenv("LIA_PIPER_BIN", "").strip(),
             voice_tts_model=(
