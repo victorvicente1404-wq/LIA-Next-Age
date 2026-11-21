@@ -172,7 +172,7 @@ class GitOperationManager:
                         raise GitOperationError("O Git não produziu um objeto de arquivo válido.")
                     self._run(
                         root, "update-index", "--add", "--cacheinfo",
-                        mode, object_id, "--", relative,
+                        mode, object_id, relative,
                         env_overrides=index_env,
                     )
                     digest.update(relative.encode("utf-8"))
