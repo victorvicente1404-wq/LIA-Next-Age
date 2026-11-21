@@ -194,9 +194,7 @@ class GitOperationManager:
             normalized = {"branch": name}
             preview = f"Criar branch local '{name}' a partir de {branch} ({head[:12]})."
         elif action == "checkout":
-            name = str(parameters.get("branch", "")).strip()
-            if not name or name in PROTECTED_BRANCHES:
-                raise GitOperationError("Checkout de branch protegida não está disponível pela Lia Dev.")
+            name = self._validate_branch(str(parameters.get("branch", "")))
             if name == branch:
                 raise GitOperationError("Essa branch já está ativa.")
             exists = self._run(root, "show-ref", "--verify", "--quiet", f"refs/heads/{name}", check=False)
