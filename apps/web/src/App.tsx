@@ -6,6 +6,8 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   memoriesUsed?: number;
+  engine?: string;
+  externalTraffic?: boolean;
 };
 
 type CoreHealth = {
@@ -62,6 +64,8 @@ export default function App() {
       });
       const data = (await response.json()) as {
         content?: string;
+        engine?: string;
+        external_traffic?: boolean;
         memories_used?: number;
         detail?: string | { message?: string };
       };
@@ -77,6 +81,8 @@ export default function App() {
             role: "assistant",
             content: data.content!,
             memoriesUsed: data.memories_used ?? 0,
+            engine: data.engine ?? "local",
+            externalTraffic: data.external_traffic ?? false,
           },
         ]);
       }
@@ -157,9 +163,10 @@ export default function App() {
                     <article className={`message ${message.role}`} key={index}>
                       <span className="message-author">{message.role === "user" ? "Você" : "Lia"}</span>
                       <p>{message.content}</p>
-                      {message.role === "assistant" && (message.memoriesUsed ?? 0) > 0 && (
-                        <small className="memory-context-note">
-                          {message.memoriesUsed} {message.memoriesUsed === 1 ? "memória usada" : "memórias usadas"}
+                      {message.role === "assistant" && (
+                        <small className="message-meta">
+                          {message.engine ?? "local"} · {message.externalTraffic ? "tráfego externo" : "somente local"}
+                          {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}
                         </small>
                       )}
                     </article>
