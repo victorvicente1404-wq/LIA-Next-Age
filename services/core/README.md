@@ -19,9 +19,15 @@ uvicorn lia_core.main:app --reload --host 127.0.0.1 --port 8000
 
 The service binds to loopback by default in the documented command. Do not expose it to a LAN or the public internet until authentication and device pairing are implemented.
 
-## Local inference with llama.cpp
+## Local inference
 
-Start a compatible llama.cpp server separately:
+The default `LIA_RUNTIME_BACKEND=auto` tries the optional OpenJarvis `LlamaCppEngine` adapter when OpenJarvis is installed in the same Python environment. If it is not installed, Lia uses its small direct llama.cpp HTTP adapter. Both paths send requests only to the configured local endpoint.
+
+- `LIA_RUNTIME_BACKEND=auto`: prefer OpenJarvis when installed, otherwise use direct llama.cpp.
+- `LIA_RUNTIME_BACKEND=openjarvis`: require OpenJarvis; startup fails clearly if it is missing.
+- `LIA_RUNTIME_BACKEND=llama.cpp`: force the direct adapter.
+
+Start llama.cpp:
 
 ```bash
 llama-server -m /path/to/model.gguf --host 127.0.0.1 --port 8080
@@ -31,15 +37,18 @@ Configure the core with:
 
 - `LIA_LLM_BASE_URL`: OpenAI-compatible base URL; default `http://127.0.0.1:8080/v1`.
 - `LIA_LLM_MODEL`: model identifier sent to the local server; default `local-model`.
+- `LIA_LLM_TIMEOUT`: request timeout in seconds; default `120`.
 - `LIA_DATA_DIR`: directory for the local SQLite memory database; default `~/.lia`.
 - `LIA_DEV_WORKSPACES`: optional, path-separated list of directories Lia Dev is allowed to inspect.
 
-The adapter calls only the configured local endpoint. It does not fall back to cloud providers. If the local model is unavailable, chat returns HTTP 503 with a clear error.
+The OpenJarvis adapter uses its `LlamaCppEngine` primitive. The direct adapter remains available for Android setups where installing the full OpenJarvis dependency tree is impractical. Neither adapter has a cloud fallback.
+
+For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python 3.10 compatibility. Newer OpenJarvis main currently declares Python >=3.11,<3.14. Both exclude Python 3.14.
 
 ## API
 
 - `GET /health`: service and configured inference status.
-- `POST /api/v1/chat`: local chat completion.
+- `POST /api/v1/chat`: local chat completion; response includes the engine name and `external_traffic: false`.
 - `POST /api/v1/memories`: save a fact, preference, knowledge item, or note.
 - `GET /api/v1/memories?q=...&kind=...`: search/list saved memories.
 - `DELETE /api/v1/memories/{id}`: delete one memory.
@@ -49,13 +58,11 @@ The adapter calls only the configured local endpoint. It does not fall back to c
 
 Lia Dev is read-only at this stage. It blocks path traversal, skips symlinks in directory listings, excludes common generated directories and secret files, and rejects oversized or non-UTF-8 files. It cannot write, install packages, or execute terminal commands yet.
 
+Memory is stored separately from the model in SQLite. OpenJarvis's SQLite/FTS5 backend is being evaluated separately because the pinned OpenJarvis checkout requires its Rust extension for that backend; the Lia-owned store remains the reliable minimal Android path for explicit personal memories.
+
 ## Tests
 
 ```bash
 pytest
 ruff check .
 ```
-
-## OpenJarvis
-
-OpenJarvis remains an architectural/backend candidate to integrate behind Lia's interfaces. The first runtime uses the llama.cpp OpenAI-compatible API directly so the core can run on the current Android/Termux setup without requiring a second framework or a cloud account. Integration must preserve the same local-first and Python-version constraints.
