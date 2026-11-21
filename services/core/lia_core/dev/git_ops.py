@@ -94,7 +94,7 @@ class GitOperationManager:
         else:
             run_options["input"] = input_data
         try:
-            result = subprocess.run([self._git, *arguments], **run_options)
+            result = subprocess.run([self._git, *arguments], check=False, **run_options)
         except subprocess.TimeoutExpired as exc:
             raise GitOperationError("A operação Git excedeu 20 segundos.") from exc
         raw_output = result.stdout
@@ -149,6 +149,10 @@ class GitOperationManager:
                     if not stat.S_ISREG(file_stat.st_mode):
                         raise GitOperationError(
                             "Somente arquivos regulares podem entrar em commits."
+                        )
+                    if total_size + file_stat.st_size > MAX_COMMIT_CONTENT_BYTES:
+                        raise GitOperationError(
+                            "O conteúdo selecionado excede o limite de 5 MB para revisão segura."
                         )
                     content = bytearray()
                     with os.fdopen(descriptor, "rb", closefd=False) as stream:
