@@ -152,3 +152,14 @@ button, textarea, select, input { font: inherit; }
 .task-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .task-result-heading span { color: #a8d8c2; font-size: 11px; }
 .task-result pre { max-height: 280px; overflow: auto; margin: 0; padding: 10px; border-radius: 8px; color: #cbd4e2; background: #0e1218; font: 10px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+
+.conversation-toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 22px; border-bottom: 1px solid #303542; background: #191d26; }
+.conversation-toolbar label { color: #929bad; font-size: 11px; white-space: nowrap; }
+.conversation-toolbar select { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid #3a4050; border-radius: 10px; color: #e5e7ed; background: #171b24; }
+.conversation-toolbar button { flex: 0 0 auto; padding: 9px 12px; border: 1px solid #66523d; border-radius: 10px; color: #e5c69e; background: #2c261f; font-size: 11px; cursor: pointer; }
+.conversation-toolbar button:disabled, .conversation-toolbar select:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 420px) {
+  .conversation-toolbar { gap: 7px; padding: 10px 12px; }
+  .conversation-toolbar button { padding: 9px 8px; font-size: 10px; }
+}
