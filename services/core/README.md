@@ -52,6 +52,10 @@ For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python
 - `POST /api/v1/memories`: save a fact, preference, knowledge item, or note.
 - `GET /api/v1/memories?q=...&kind=...`: search/list saved memories.
 - `DELETE /api/v1/memories/{id}`: delete one memory.
+- `POST /api/v1/conversations`: create a chat session.
+- `GET /api/v1/conversations?limit=...`: list recent sessions.
+- `GET /api/v1/conversations/{id}?limit=...&offset=...`: load messages with pagination.
+- `DELETE /api/v1/conversations/{id}`: delete a session and its messages.
 - `GET /api/v1/dev/workspaces`: list explicitly allowed developer workspaces.
 - `GET /api/v1/dev/workspaces/{id}/files?path=...`: list a directory.
 - `GET /api/v1/dev/workspaces/{id}/file?path=...`: read a UTF-8 text file up to 256 KiB.
@@ -61,6 +65,10 @@ For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python
 Memories are stored separately from the model in SQLite. FTS5 is used for local full-text retrieval when available; substring search is the fallback. Explicitly saved preferences are included in the chat context, along with up to five memories total (saved preferences are prioritized, then query matches). The chat API reports `memories_used`. Requests can set `use_memory=false` to disable retrieval for a turn.
 
 The application does not silently extract new memories from conversation. Users add and delete entries through the Memory tab. Retrieved entries are labeled as saved context, not executable instructions.
+
+## Conversation history
+
+Chat sessions and their messages are stored in `LIA_DATA_DIR/conversations.sqlite3`, separately from `memory.sqlite3`. The web interface restores the most recently updated session, lets the user switch between recent sessions or start a new one, and persists each successful user/assistant turn. History is not automatically promoted into long-term memory. The chat request sends only the latest 40 messages as model context while the full history remains stored. The API exposes paginated message retrieval and session deletion.
 
 OpenJarvis's SQLite/FTS5 backend is being evaluated separately because the pinned OpenJarvis checkout requires its Rust extension for that backend; the Lia-owned store remains the reliable minimal Android path for explicit personal memories.
 
