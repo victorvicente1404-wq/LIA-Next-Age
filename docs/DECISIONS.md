@@ -93,3 +93,22 @@
 - O caminho simples continua disponível com `use_tools=false`; não existe fallback remoto.
 
 **Limitações conhecidas:** allowlist inicial limitada a calculadora e busca de memória; ainda não há plano persistente, agentes especialistas, tarefas interrompíveis, ferramentas de escrita ou conectores. A validação real com GGUF e Android continua pendente.
+
+
+## ADR-007 — Especialistas como perfis subordinados ao orquestrador
+
+**Decisão:** os primeiros especialistas da Lia são perfis de instrução e allowlists de ferramentas, não agentes autônomos nem modelos separados. O único loop de decisão continua em `LiaOrchestrator`.
+
+**Perfis iniciais:**
+- `general`: conversa geral, calculadora e busca de memória explícita.
+- `memory`: recuperação de memórias salvas; somente `memory_search`.
+- `engineering`: explicações de engenharia e tecnologia; sem acesso ao workspace, terminal ou Git pelo chat.
+
+**Governança:**
+- O modelo pode selecionar no máximo um perfil especializado por resposta.
+- Cada perfil recebe somente sua própria lista de ferramentas permitidas; a política global continua fail-closed.
+- Nenhum perfil cria permissões, ferramentas, memória ou inferência separadas.
+- Todos usam o mesmo modelo local, a mesma memória da Lia e o mesmo orquestrador.
+- Novos perfis só devem ganhar ferramentas depois que os contratos, validações e aprovações correspondentes existirem.
+
+**Limitações:** seleção de perfil é uma decisão do modelo e pode não ocorrer em modelos locais menos capazes. Os perfis iniciais não executam ações externas nem acessam recursos de Lia Dev.
