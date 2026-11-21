@@ -11,19 +11,19 @@ Assistente pessoal local-first, modular e extensível.
 - **Segurança por padrão:** permissões mínimas, ações sensíveis sujeitas a aprovação, segredos fora do repositório e histórico de alterações.
 - **Evolução incremental:** módulos pequenos, contratos documentados, testes e rollback; preservar funcionalidades úteis dos projetos anteriores sem copiar acoplamentos desnecessários.
 
-## Arquitetura-alvo
+## Arquitetura
 
 1. **Interface:** aplicação web responsiva (Vite/React), utilizável no celular e no desktop.
-2. **Núcleo:** ciclo de interação, roteamento de intenções, políticas e coordenação de ferramentas.
-3. **Runtime local:** servidor de inferência compatível com llama.cpp; OpenJarvis será avaliado/reutilizado como base do backend.
-4. **Memória:** armazenamento local versionável, extração, indexação e recuperação controladas pela aplicação.
+2. **Núcleo:** API Python para conversação, roteamento, políticas e coordenação de ferramentas.
+3. **Runtime local:** adaptador OpenAI-compatible para llama.cpp; OpenJarvis é uma base avaliada para integração futura.
+4. **Memória:** SQLite local, independente do modelo, com operações explícitas de criar, pesquisar e apagar.
 5. **Lia Dev:** workspace sandbox, operações Git, diffs, testes e terminal com allowlist/aprovação.
 6. **Percepção e voz:** módulos opcionais para áudio, câmera e contexto, sempre com indicadores e consentimento.
 7. **Conectores:** adaptadores independentes para WhatsApp, Google e dispositivos domésticos.
 
 ## Política de provedores
 
-O modelo local é o padrão. Provedores remotos podem ser configurados voluntariamente como opção, mas nunca devem ser acionados silenciosamente nem ser requisito para o funcionamento básico. A interface deve informar qual motor respondeu e quando houve tráfego externo.
+O modelo local é o padrão. Provedores remotos podem ser configurados voluntariamente como opção, mas nunca devem ser acionados silenciosamente nem ser requisito para o funcionamento básico. A API de chat atual envia mensagens apenas para o endpoint local configurado e informa external_traffic=false.
 
 ## Segurança
 
@@ -33,17 +33,24 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - Exibir o plano e o diff antes de gravar alterações.
 - Exigir aprovação para escrita, instalação de dependências, execução de comandos e acesso a dados sensíveis.
 - Registrar ações e permitir desfazer alterações sempre que possível.
+- A interface e a API de desenvolvimento são vinculadas ao loopback; não as exponha à rede antes de implementar autenticação e pareamento de dispositivos.
 
-## Plano inicial
+## Progresso
 
-- [ ] Definir contratos e estrutura do monorepo.
-- [ ] Criar runtime local mínimo e health check.
-- [ ] Implementar armazenamento e API de memória.
-- [ ] Conectar a interface ao núcleo local.
+- [x] Monorepo inicial e regras de engenharia.
+- [x] Interface web inicial com chat.
+- [x] API Python e health check.
+- [x] Adaptador de inferência local para llama.cpp.
+- [x] Memória SQLite independente do modelo.
+- [x] Testes básicos para chat, saúde e persistência.
+- [ ] Executar CI e validar build em ambiente real.
+- [ ] Recuperar memórias relevantes no contexto de conversa, com política de privacidade.
 - [ ] Implementar Lia Dev em sandbox com fluxo de aprovação.
-- [ ] Portar seletivamente recursos úteis de LIA-1.0.
-- [ ] Adicionar conectores opcionais e testes de integração.
+- [ ] Integrar voz, percepção e conectores opcionais.
+- [ ] Avaliar integração direta com OpenJarvis sem quebrar compatibilidade Android.
 
-## Estado
+## Rodar localmente
 
-Este repositório inicia a nova base da Lia. As decisões arquiteturais devem ser registradas antes de adicionar dependências ou migrar módulos.
+Consulte [o guia Android/Termux](docs/ANDROID_TERMUX.md) e [o guia do núcleo](services/core/README.md).
+
+Este repositório é a nova base da Lia. O branch foundation/bootstrap é o ambiente de desenvolvimento; a branch main permanece intacta até a revisão e validação da fundação.
