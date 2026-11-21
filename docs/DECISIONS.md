@@ -16,14 +16,16 @@
 
 ## ADR-002 — Memória separada do modelo
 
-**Decisão:** memórias explícitas são persistidas em SQLite pelo serviço da Lia.
+**Decisão:** memórias explícitas são persistidas em SQLite pelo serviço da Lia e recuperadas para o contexto de conversa.
 
-**Motivo:** o modelo pode ser substituído sem perder os dados da assistente.
+**Motivo:** o modelo pode ser substituído sem perder os dados da assistente, e o usuário mantém controle sobre o que é guardado.
 
 **Consequências:**
-- A primeira versão permite salvar, listar, pesquisar e apagar entradas.
+- A interface permite criar, listar, pesquisar e apagar memórias.
+- Preferências salvas explicitamente são incluídas no contexto; outras memórias são recuperadas por busca local FTS5 quando disponível.
+- A API informa quantas memórias foram usadas e permite desativar a recuperação em uma chamada.
 - A gravação é explícita; não há extração silenciosa de toda conversa.
-- Recuperação contextual, níveis de confiança, origem, expiração e aprovação de extrações serão definidos em uma etapa própria.
+- A recuperação usa dados salvos como contexto, nunca como comandos executáveis.
 - O backend SQLite/FTS5 do OpenJarvis está sendo avaliado, mas o checkout fixado usa uma extensão Rust obrigatória. O armazenamento próprio da Lia continua sendo o caminho mínimo e previsível no Android.
 
 ## ADR-003 — Ferramentas e Lia Dev com fronteiras de segurança
