@@ -91,16 +91,16 @@ pytest
 ruff check .
 ```
 
-## Agent runtime and tools
+## Lia-owned cognitive orchestration
 
-When OpenJarvis is installed and selected as the local inference backend, chat can use its pinned `OrchestratorAgent` tool-calling loop. The agent receives the conversation context and a Lia-owned registry/policy layer; the model does not own tool permissions.
+Chat with `use_tools=true` uses `LiaOrchestrator`, owned by the Lia application and independent of the inference backend. It runs a bounded JSON decision loop (maximum four tool/model steps) over the same local model adapter. Both the direct llama.cpp HTTP adapter and the optional OpenJarvis LlamaCppEngine adapter expose this orchestration contract.
 
-The initial allowlist contains only:
-- `calculator`: bounded arithmetic grammar, implemented without `eval` or code execution.
-- `memory_search`: read-only retrieval from memories explicitly saved by the user.
+The current local read-only tool allowlist contains:
+- `calculator`: bounded arithmetic grammar, without `eval` or code execution.
+- `memory_search`: retrieval from memories explicitly saved by the user.
 
-The policy denies unknown tools and every tool not explicitly allowlisted as read-only. The OpenJarvis `before_tool_call` governance hook is checked before dispatch. No file-write, shell, Git mutation, web, messaging, calendar, or home-automation tools are exposed to the conversational agent in this milestone.
+Every proposed tool call is dispatched through Lia's fail-closed registry and policy. Unknown tools are denied. There is no shell, file write, Git mutation, web access, messaging, calendar, or home automation exposed to chat. Tool output is reintroduced as untrusted data. The loop is bounded and does not grant the model direct execution privileges.
 
-If OpenJarvis is not installed, the direct llama.cpp adapter remains available and chat uses its simple completion path. No remote provider is used as fallback. Set `use_tools=false` on a chat request to force the simple completion path even when OpenJarvis is available.
+Set `use_tools=false` to use a plain local completion. No hosted provider is used as fallback. The UI displays the orchestration identifier and tool-call count returned by the API.
 
-The API response includes `agent`, `tool_calls`, and `agent_turns` so the UI can later show which local tools were used. The OpenJarvis orchestration path has not yet been validated on Android or with the user's real GGUF model.
+This is the first cognitive orchestration milestone, not full autonomous planning. Persistent task plans, specialist agents, approval workflows for external actions, and recovery of interrupted jobs remain future work. Runtime behavior with the real GGUF and Android device still requires hands-on validation.
