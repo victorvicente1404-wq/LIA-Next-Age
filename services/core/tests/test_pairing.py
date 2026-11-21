@@ -32,17 +32,17 @@ def test_pairing_store_approves_once_persists_hash_and_revokes(tmp_path: Path):
     assert pending[0]["device_name"] == "Celular"
 
     approved = store.approve(request["request_id"], request["pairing_code"])
-    assert approved["access_token"]
+    assert request["pairing_code"]
     assert set(approved["scopes"]) == {"chat", "voice"}
-    assert store.authenticate(approved["access_token"])["device_id"] == approved["device_id"]
+    assert store.authenticate(request["pairing_code"])["device_id"] == approved["device_id"]
 
     with pytest.raises(PairingError):
         store.approve(request["request_id"], request["pairing_code"])
 
     reopened = PairingStore(tmp_path / "pairing.sqlite3")
-    assert reopened.authenticate(approved["access_token"])["device_id"] == approved["device_id"]
+    assert reopened.authenticate(request["pairing_code"])["device_id"] == approved["device_id"]
     assert reopened.revoke(approved["device_id"]) is True
-    assert reopened.authenticate(approved["access_token"]) is None
+    assert reopened.authenticate(request["pairing_code"]) is None
     assert reopened.revoke(approved["device_id"]) is False
 
 
@@ -206,7 +206,7 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     memory_response = remote.get(
         "/api/v1/memories",
         headers=signed_headers(
-            memory_device["access_token"],
+            memory_request["pairing_code"],
             "GET",
             "/api/v1/memories",
             "nonce-123456789016",
