@@ -114,7 +114,7 @@ class DevRollbackResponse(BaseModel):
     path: str
     restored_sha256: str
     status: str
-    previous_version_backup: str
+    backup_retained: bool
 
 
 def create_app(
