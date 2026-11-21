@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -65,7 +66,12 @@ class GitOperationManager:
                 errors="replace",
                 timeout=20,
                 shell=False,
-                env={"PATH": str(Path(self._git).parent), "GIT_TERMINAL_PROMPT": "0"},
+                env={
+                    "PATH": os.environ.get("PATH", str(Path(self._git).parent)),
+                    "HOME": str(Path.home()),
+                    "GIT_TERMINAL_PROMPT": "0",
+                    "GIT_CONFIG_NOSYSTEM": "1",
+                },
             )
         except subprocess.TimeoutExpired as exc:
             raise GitOperationError("A operação Git excedeu 20 segundos.") from exc
@@ -163,7 +169,7 @@ class GitOperationManager:
         branch, head, status = self._state(root)
         if action in {"create_branch", "checkout", "commit", "revert_head"} and not branch:
             raise GitOperationError("O repositório está em estado detached HEAD; operação bloqueada.")
-        if action in {"checkout", "commit", "revert_head", "create_branch"} and status.strip():
+        if action in {"checkout", "revert_head", "create_branch"} and status.strip():
             raise GitOperationError(
                 "Há alterações locais pendentes. Faça commit ou resolva-as antes de mudar de branch."
             )
@@ -264,7 +270,7 @@ class GitOperationManager:
         branch, head, status = self._state(root)
         if branch != proposal.branch or head != proposal.head:
             raise GitOperationError("O estado do Git mudou desde a revisão. Gere uma nova proposta.")
-        if proposal.action in {"checkout", "create_branch", "commit", "revert_head"} and status.strip():
+        if proposal.action in {"checkout", "create_branch", "revert_head"} and status.strip():
             raise GitOperationError("O workspace deixou de estar limpo. Operação cancelada.")
         if proposal.action == "commit":
             paths = proposal.parameters["paths"]
