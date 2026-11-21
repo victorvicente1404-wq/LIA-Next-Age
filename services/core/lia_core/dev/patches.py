@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 import hashlib
+import json
 import os
 import tempfile
 import uuid
@@ -54,8 +55,73 @@ class PatchManager:
     def __init__(self, workspaces: WorkspaceRegistry, backup_dir: Path) -> None:
         self._workspaces = workspaces
         self._backup_dir = backup_dir
+        self._operations_file = backup_dir / "operations.json"
         self._proposals: dict[str, PatchProposal] = {}
         self._applied: dict[str, AppliedPatch] = {}
+        self._load_operations()
+
+    def _load_operations(self) -> None:
+        try:
+            payload = json.loads(self._operations_file.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return
+        for item in payload.get("operations", []):
+            if not isinstance(item, dict):
+                continue
+            operation_id = item.get("id")
+            workspace_id = item.get("workspace_id")
+            relative_path = item.get("path")
+            backup_name = item.get("backup_name")
+            applied_sha = item.get("applied_sha256")
+            if not all(isinstance(value, str) and value for value in (
+                operation_id, workspace_id, relative_path, backup_name, applied_sha
+            )):
+                continue
+            if Path(backup_name).name != backup_name or not backup_name.endswith(".bak"):
+                continue
+            backup_path = self._backup_dir / backup_name
+            if backup_path.is_file():
+                self._applied[operation_id] = AppliedPatch(
+                    id=operation_id,
+                    workspace_id=workspace_id,
+                    path=relative_path,
+                    backup_path=backup_path,
+                    applied_sha256=applied_sha,
+                )
+
+    def _save_operations(self) -> None:
+        self._backup_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "operations": [
+                {
+                    "id": item.id,
+                    "workspace_id": item.workspace_id,
+                    "path": item.path,
+                    "backup_name": item.backup_path.name,
+                    "applied_sha256": item.applied_sha256,
+                }
+                for item in self._applied.values()
+            ]
+        }
+        temporary_name: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=self._backup_dir,
+                prefix=".lia-operations-", delete=False
+            ) as temporary:
+                temporary_name = temporary.name
+                json.dump(payload, temporary, ensure_ascii=False)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            os.chmod(temporary_name, 0o600)
+            os.replace(temporary_name, self._operations_file)
+        except Exception:
+            if temporary_name is not None:
+                try:
+                    os.unlink(temporary_name)
+                except OSError:
+                    pass
+            raise
 
     def _purge_expired(self) -> None:
         now = datetime.now(timezone.utc)
@@ -128,6 +194,15 @@ class PatchManager:
             backup_path=backup_path,
             applied_sha256=applied_sha,
         )
+        try:
+            self._save_operations()
+        except Exception:
+            try:
+                original = backup_path.read_text(encoding="utf-8")
+                self._replace(proposal.workspace_id, proposal.path, applied_sha, original)
+            finally:
+                self._applied.pop(operation_id, None)
+            raise
         del self._proposals[proposal_id]
         return {
             "operation_id": operation_id,
@@ -151,6 +226,7 @@ class PatchManager:
             original_content,
         )
         self._applied.pop(operation_id, None)
+        self._save_operations()
         return {
             "rollback_id": operation_id,
             "path": operation.path,
