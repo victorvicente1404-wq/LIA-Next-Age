@@ -17,6 +17,8 @@ htmlcov/
 *.sqlite
 *.sqlite3
 *.db
+.lia/
+*.log
 .DS_Store
 Thumbs.db
 .idea/
