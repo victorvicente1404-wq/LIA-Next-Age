@@ -59,3 +59,17 @@
 - Reutilizar agentes simples/orchestrator e o runtime de ferramentas do OpenJarvis após validar a instalação no Termux.
 - Manter os contratos de chat, memória e permissões pertencentes à aplicação Lia.
 - Avaliar o backend FTS5 do OpenJarvis separadamente da memória pessoal explícita.
+
+## ADR-005 — Registry e política de ferramentas pertencem à Lia
+
+**Decisão:** a Lia mantém seu próprio registry de ferramentas, catálogo de permissões e política fail-closed. O OpenJarvis fornece o loop de orquestração quando disponível, mas não define sozinho o que a Lia pode executar.
+
+**Primeira allowlist:** `calculator` (aritmética limitada, sem `eval`) e `memory_search` (consulta somente leitura à memória explícita).
+
+**Governança:** cada chamada é validada pela política antes do despacho usando o hook `before_tool_call` do `OrchestratorAgent`. Ferramentas desconhecidas, ferramentas fora da allowlist e ferramentas que não sejam somente de leitura são negadas. O agente recebe o histórico de conversa já preparado pela API.
+
+**Consequências:** 
+- O agente não recebe shell, escrita de arquivos, Git mutável, web, mensageria, calendário ou automação doméstica.
+- O adaptador direto llama.cpp continua funcionando sem OpenJarvis, sem ferramentas e sem fallback remoto.
+- A resposta da API informa agente, número de chamadas de ferramenta e turnos do agente.
+- A integração é opcional e ainda precisa de validação com o GGUF real e no ambiente Android.
