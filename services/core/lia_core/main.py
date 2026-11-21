@@ -43,6 +43,7 @@ class ChatRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0, le=2)
     max_tokens: int = Field(default=512, ge=1, le=4096)
     use_memory: bool = True
+    use_tools: bool = True
     conversation_id: str | None = Field(default=None, max_length=36)
 
 
@@ -73,6 +74,9 @@ class ChatResponse(BaseModel):
     engine: str = "llama.cpp"
     external_traffic: bool = False
     memories_used: int = 0
+    agent: str = "simple"
+    tool_calls: int = 0
+    agent_turns: int = 1
 
 
 class ChatEngine(Protocol):
@@ -307,10 +311,21 @@ def create_app(
         if system_sections:
             messages.insert(0, {"role": "system", "content": "\n\n".join(system_sections)})
 
+        agent_result: dict[str, object] = {}
         try:
-            answer = await request.app.state.inference.complete(
-                messages, payload.temperature, payload.max_tokens
-            )
+            agent_runner = getattr(request.app.state.inference, "complete_with_agent", None)
+            if payload.use_tools and callable(agent_runner):
+                agent_result = await agent_runner(
+                    messages,
+                    payload.temperature,
+                    payload.max_tokens,
+                    request.app.state.memory,
+                )
+                answer = str(agent_result["content"])
+            else:
+                answer = await request.app.state.inference.complete(
+                    messages, payload.temperature, payload.max_tokens
+                )
         except LocalModelError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -335,6 +350,9 @@ def create_app(
             content=answer,
             engine=getattr(request.app.state.inference, "engine_name", "llama.cpp"),
             memories_used=len(memory_records),
+            agent="openjarvis_orchestrator" if agent_result else "simple",
+            tool_calls=int(agent_result.get("tool_calls", 0)),
+            agent_turns=int(agent_result.get("turns", 1)),
         )
 
     @app.post("/api/v1/memories", response_model=MemoryItem, status_code=status.HTTP_201_CREATED)
