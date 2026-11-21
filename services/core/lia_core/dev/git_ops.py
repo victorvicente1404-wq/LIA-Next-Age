@@ -140,8 +140,12 @@ class GitOperationManager:
             if path.suffix.lower() in SENSITIVE_SUFFIXES:
                 raise GitOperationError("Arquivo de chave/certificado bloqueado para commit.")
             absolute = root / path
-            if absolute.is_symlink() or not absolute.resolve().is_relative_to(root):
-                raise GitOperationError("Caminho simbólico ou fora do workspace bloqueado.")
+            if (
+                absolute.is_symlink()
+                or not absolute.is_file()
+                or not absolute.resolve().is_relative_to(root)
+            ):
+                raise GitOperationError("Somente arquivos regulares dentro do workspace podem entrar em commits.")
             normalized.append(path.as_posix())
         if len(set(normalized)) != len(normalized):
             raise GitOperationError("A lista contém caminhos duplicados.")
