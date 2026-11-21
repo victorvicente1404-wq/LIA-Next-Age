@@ -39,13 +39,13 @@ O status indica configuração, não garante que o processo externo esteja ativo
 - Não há gravação contínua nem microfone sempre ligado.
 - O usuário inicia e encerra cada gravação manualmente.
 - O navegador precisa oferecer `MediaRecorder` e permissão de microfone; normalmente isso exige HTTPS ou contexto local seguro.
-- O núcleo e o painel Lia Dev continuam vinculados ao loopback. Não exponha o serviço à rede para usar o microfone de outro aparelho: pareamento, autenticação e transporte HTTPS entre dispositivos ainda precisam ser implementados.
+- O núcleo e o painel Lia Dev continuam vinculados ao loopback por padrão. Existe agora uma API opt-in de pareamento com HTTPS, aprovação local, tokens limitados, assinatura anti-replay e revogação. Ela ainda não tem interface no frontend nem cliente Android; não exponha o serviço até integrar e validar esses clientes. Consulte [DEVICE_PAIRING.md](DEVICE_PAIRING.md).
 - O primeiro corte não instala modelos, não baixa vozes e não altera o sistema operacional.
 - A compatibilidade e o desempenho em Android ainda precisam de validação em um runtime local Android. A camada atual é um adaptador de núcleo, não uma promessa de execução no celular sem configuração.
 
 ## Próximas melhorias
 
-- Pareamento seguro entre celular e PC, com HTTPS e autorização explícita.
+- Interface de pareamento no frontend e cliente Android com armazenamento seguro do token e assinatura de requisições.
 - Seleção e gerenciamento de vozes instaladas.
 - Detecção de silêncio/VAD e conversação por turnos sem gravação manual.
 - Testes de latência, consumo de RAM e qualidade em dispositivos Android.
