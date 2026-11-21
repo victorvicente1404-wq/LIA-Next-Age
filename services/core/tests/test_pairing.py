@@ -55,7 +55,7 @@ def test_pairing_code_attempt_limit_locks_request(tmp_path: Path):
 
 def signed_headers(token: str, method: str, path: str, nonce: str) -> dict[str, str]:
     timestamp = str(int(time.time()))
-    message = f"{method.upper()}\n{path}\n{timestamp}\n{nonce}".encode("utf-8")
+    message = f"{method.upper()}\n{path}\n{timestamp}\n{nonce}".encode()
     signature = hmac.new(token.encode("utf-8"), message, hashlib.sha256).hexdigest()
     return {
         "Authorization": f"Bearer {token}",
