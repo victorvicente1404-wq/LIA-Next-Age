@@ -37,7 +37,7 @@
 2. Produzir um plano estruturado com operações tipadas.
 3. Exibir comandos, arquivos afetados e diff previsto.
 4. Solicitar aprovação explícita para escrita, instalação, execução ou operações externas.
-5. Executar em sandbox com limites de tempo, saída e recursos.
+5. Executar com limites de tempo e saída. Até existir uma sandbox em nível de sistema operacional implementada e validada, comandos aprovados rodam como processos locais e devem ser tratados como código confiável do projeto.
 6. Registrar o resultado e oferecer rollback por Git quando aplicável.
 
 **Proibido:** transformar texto livre do modelo em comando de shell com `shell=True`, aceitar caminhos arbitrários ou ativar autonomia irrestrita por padrão.
@@ -47,6 +47,13 @@
 **Decisão:** integrar primitivas OpenJarvis atrás de interfaces da Lia e manter adaptadores próprios pequenos para os requisitos móveis.
 
 **Motivo:** OpenJarvis já fornece motores OpenAI-compatible, agentes, registries, ferramentas e memória pesquisável. Porém, seu pacote completo e algumas extensões nativas podem ser pesados para o Android. A Lia deve aproveitar essas primitivas quando instaladas, sem tornar o funcionamento básico dependente delas.
+
+**Implementação inicial de Git:**
+- Operações tipadas disponíveis: criar branch, trocar para branch local não protegida, commit de arquivos rastreados explicitamente selecionados e reverter o commit atual criando um novo commit inverso.
+- `main` e `master` são protegidas contra commit e reversão; troca para essas branches é bloqueada na Lia Dev.
+- Cada operação exige proposta e aprovação separada; propostas expiram em cinco minutos e são de uso único.
+- Trocas/criações de branch e reversões exigem árvore de trabalho limpa. Commits validam o diff selecionado, não incluem paths staged não selecionados e bloqueiam arquivos secretos e pathspecs com curingas.
+- Git hooks são desabilitados durante essas operações. Isso não substitui uma sandbox de sistema operacional.
 
 **Próximos passos:**
 - Reutilizar agentes simples/orchestrator e o runtime de ferramentas do OpenJarvis após validar a instalação no Termux.

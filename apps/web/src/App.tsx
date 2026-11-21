@@ -10,6 +10,17 @@ type Message = {
   externalTraffic?: boolean;
 };
 
+type Conversation = {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type StoredConversation = Conversation & {
+  messages: Array<{ id: number; role: "user" | "assistant"; content: string; created_at: string }>;
+};
+
 type CoreHealth = {
   status: string;
   inference: string;
@@ -24,6 +35,39 @@ export default function App() {
   const [health, setHealth] = useState<CoreHealth | null>(null);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<ActiveTab>("chat");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function restoreLatestConversation() {
+      try {
+        const response = await fetch("/api/v1/conversations?limit=30");
+        if (!response.ok) throw new Error("Não foi possível carregar o histórico.");
+        const items = (await response.json()) as Conversation[];
+        if (!active) return;
+        setConversations(items);
+        if (items.length > 0) {
+          const latest = await fetch(`/api/v1/conversations/${items[0].id}`);
+          if (!latest.ok) throw new Error("Não foi possível restaurar a conversa.");
+          const detail = (await latest.json()) as StoredConversation;
+          if (!active) return;
+          setCurrentConversationId(detail.id);
+          setMessages(detail.messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })));
+        }
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : "Falha ao carregar histórico.");
+      } finally {
+        if (active) setHistoryLoading(false);
+      }
+    }
+    void restoreLatestConversation();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -57,10 +101,24 @@ export default function App() {
     setBusy(true);
 
     try {
+      let conversationId = currentConversationId;
+      if (!conversationId) {
+        const created = await fetch("/api/v1/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "Nova conversa" }),
+        });
+        if (!created.ok) throw new Error("Não foi possível iniciar uma conversa.");
+        const conversation = (await created.json()) as Conversation;
+        conversationId = conversation.id;
+        setCurrentConversationId(conversationId);
+        setConversations((current) => [conversation, ...current]);
+      }
+
       const response = await fetch("/api/v1/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages }),
+        body: JSON.stringify({ messages: nextMessages.slice(-40), conversation_id: conversationId }),
       });
       const data = (await response.json()) as {
         content?: string;
@@ -85,12 +143,46 @@ export default function App() {
             externalTraffic: data.external_traffic ?? false,
           },
         ]);
+        const history = await fetch("/api/v1/conversations?limit=30");
+        if (history.ok) setConversations((await history.json()) as Conversation[]);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha ao enviar mensagem.");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function openConversation(conversationId: string) {
+    if (!conversationId) {
+      startNewConversation();
+      return;
+    }
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/v1/conversations/${conversationId}`);
+      if (!response.ok) throw new Error("Não foi possível abrir essa conversa.");
+      const detail = (await response.json()) as StoredConversation;
+      setCurrentConversationId(detail.id);
+      setMessages(detail.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Falha ao abrir conversa.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startNewConversation() {
+    if (busy) return;
+    setCurrentConversationId(null);
+    setMessages([]);
+    setDraft("");
+    setError("");
   }
 
   const connected = health?.status === "ok";
@@ -142,8 +234,25 @@ export default function App() {
           <MemoryPanel />
         ) : (
           <>
+            <div className="conversation-toolbar">
+              <label htmlFor="conversation-select">Histórico</label>
+              <select
+                id="conversation-select"
+                value={currentConversationId ?? ""}
+                onChange={(event) => void openConversation(event.target.value)}
+                disabled={busy || historyLoading}
+              >
+                <option value="">Nova conversa</option>
+                {conversations.map((conversation) => (
+                  <option key={conversation.id} value={conversation.id}>{conversation.title}</option>
+                ))}
+              </select>
+              <button type="button" onClick={startNewConversation} disabled={busy}>Nova conversa</button>
+            </div>
             <div className="conversation" aria-live="polite">
-              {messages.length === 0 ? (
+              {historyLoading ? (
+                <div className="thinking">Restaurando seu histórico…</div>
+              ) : messages.length === 0 ? (
                 <div className="welcome">
                   <div className="welcome-orb">L</div>
                   <h2>Olá. Eu sou a Lia.</h2>
@@ -185,9 +294,9 @@ export default function App() {
                 placeholder="Converse com a Lia…"
                 aria-label="Mensagem para Lia"
                 rows={2}
-                disabled={busy}
+                disabled={busy || historyLoading}
               />
-              <button type="submit" disabled={busy || !draft.trim()}>
+              <button type="submit" disabled={busy || historyLoading || !draft.trim()}>
                 {busy ? "…" : "Enviar"}
               </button>
             </form>
