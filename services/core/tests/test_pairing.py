@@ -203,10 +203,12 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
         headers={"Origin": "https://lia.test"},
         json={"device_name": "Tablet com memória", "scopes": ["chat", "memory:read"]},
     ).json()
-    memory_device = local.post(
+    memory_approval = local.post(
         f"/api/v1/pairing/requests/{memory_request['request_id']}/approve",
         json={"pairing_code": memory_request["pairing_code"]},
-    ).json()
+    )
+    assert memory_approval.status_code == 200
+    assert "access_token" not in memory_approval.json()
     memory_response = remote.get(
         "/api/v1/memories",
         headers=signed_headers(
