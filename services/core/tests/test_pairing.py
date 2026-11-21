@@ -132,6 +132,31 @@ def test_remote_pairing_requires_https_and_trusted_origin(tmp_path: Path):
     assert request.json()["expires_in_seconds"] == 300
 
 
+def test_remote_pairing_creation_is_rate_limited_per_client_ip(tmp_path: Path):
+    app = build_pairing_app(tmp_path)
+    remote = TestClient(
+        app, base_url="https://lia.test", client=("192.168.1.20", 45000)
+    )
+    responses = [
+        remote.post(
+            "/api/v1/pairing/requests",
+            headers={"Origin": "https://lia.test"},
+            json={"device_name": f"Phone {index}", "scopes": ["chat"]},
+        )
+        for index in range(5)
+    ]
+    limited = remote.post(
+        "/api/v1/pairing/requests",
+        headers={"Origin": "https://lia.test"},
+        json={"device_name": "Phone extra", "scopes": ["chat"]},
+    )
+
+    assert all(response.status_code == 201 for response in responses)
+    assert all(response.headers["cache-control"] == "no-store" for response in responses)
+    assert limited.status_code == 429
+    assert len(app.state.pairing.list_pending()) == 5
+
+
 def test_remote_device_can_check_only_its_pairing_request_status(tmp_path: Path):
     app = build_pairing_app(tmp_path)
     remote = TestClient(
