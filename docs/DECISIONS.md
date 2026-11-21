@@ -128,6 +128,8 @@
 
 **Consequência:** o uso do microfone pelo navegador no próprio dispositivo pode ser desenvolvido localmente, mas o acesso celular-PC pela rede fica bloqueado até que o fluxo de identidade, transporte, autorização e revogação seja implementado e testado. Não abrir o servidor em `0.0.0.0` como atalho.
 
+**Limitação operacional atual:** o limite de criação de pareamentos é mantido em memória por processo; ele não coordena múltiplos workers e não substitui um rate limiter distribuído. O acesso remoto continua desativado por padrão e não deve ser habilitado em produção antes de resolver essa limitação, validar proxy confiável e testar certificados/firewall reais.
+
 **Ameaças consideradas:** dispositivos desconhecidos na LAN, páginas web maliciosas tentando acessar serviços locais, roubo/reuso de tokens, replay de solicitações e exposição acidental de dados pessoais ou workspaces.
 
 **Status da implementação inicial:**
