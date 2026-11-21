@@ -17,6 +17,7 @@ from lia_core.dev.workspaces import (
     UnsupportedTextFile,
     WorkspaceFileTooLarge,
     WorkspaceItemNotFound,
+    WorkspaceNotFound,
     WorkspaceRegistry,
 )
 
@@ -47,6 +48,7 @@ class AppliedPatch:
     path: str
     backup_path: Path
     applied_sha256: str
+    workspace_root: str
 
 
 class PatchManager:
@@ -65,6 +67,8 @@ class PatchManager:
             payload = json.loads(self._operations_file.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return
+        if not isinstance(payload, dict):
+            return
         for item in payload.get("operations", []):
             if not isinstance(item, dict):
                 continue
@@ -73,20 +77,26 @@ class PatchManager:
             relative_path = item.get("path")
             backup_name = item.get("backup_name")
             applied_sha = item.get("applied_sha256")
+            workspace_root = item.get("workspace_root")
             if not all(isinstance(value, str) and value for value in (
-                operation_id, workspace_id, relative_path, backup_name, applied_sha
+                operation_id, workspace_id, relative_path, backup_name, applied_sha, workspace_root
             )):
                 continue
             if Path(backup_name).name != backup_name or not backup_name.endswith(".bak"):
                 continue
             backup_path = self._backup_dir / backup_name
-            if backup_path.is_file():
+            try:
+                configured_root = str(self._workspaces._workspace(workspace_id).root)
+            except WorkspaceNotFound:
+                continue
+            if backup_path.is_file() and configured_root == workspace_root:
                 self._applied[operation_id] = AppliedPatch(
                     id=operation_id,
                     workspace_id=workspace_id,
                     path=relative_path,
                     backup_path=backup_path,
                     applied_sha256=applied_sha,
+                    workspace_root=workspace_root,
                 )
 
     def _save_operations(self) -> None:
@@ -99,6 +109,7 @@ class PatchManager:
                     "path": item.path,
                     "backup_name": item.backup_path.name,
                     "applied_sha256": item.applied_sha256,
+                    "workspace_root": item.workspace_root,
                 }
                 for item in self._applied.values()
             ]
@@ -205,6 +216,7 @@ class PatchManager:
             path=proposal.path,
             backup_path=backup_path,
             applied_sha256=applied_sha,
+            workspace_root=str(self._workspaces._workspace(proposal.workspace_id).root),
         )
         try:
             self._save_operations()
