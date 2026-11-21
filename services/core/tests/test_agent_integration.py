@@ -50,7 +50,7 @@ def test_chat_uses_agent_for_user_turn_and_returns_agent_metadata(tmp_path):
 
     assert response.status_code == 200
     assert response.json()["content"] == "Resposta do agente"
-    assert response.json()["agent"] == "openjarvis_orchestrator"
+    assert response.json()["agent"] == "lia_orchestrator"
     assert response.json()["tool_calls"] == 2
     assert response.json()["agent_turns"] == 3
     assert inference.agent_calls == 1
