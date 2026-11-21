@@ -16,7 +16,11 @@ from lia_core.pairing import PairingError, PairingStore
 class FakeModel:
     engine_name = "llama.cpp"
 
+    def __init__(self):
+        self.last_messages = []
+
     async def complete(self, messages, temperature, max_tokens):
+        self.last_messages = messages
         return "Resposta local."
 
 
@@ -130,6 +134,10 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
 
     pending = local.get("/api/v1/pairing/requests")
     assert pending.status_code == 200
+    local.post(
+        "/api/v1/memories",
+        json={"kind": "note", "content": "private note only for the owner"},
+    )
     approved = local.post(
         f"/api/v1/pairing/requests/{created['request_id']}/approve",
         json={"pairing_code": created["pairing_code"]},
@@ -142,6 +150,10 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     payload = {"messages": [{"role": "user", "content": "Oi"}]}
     first = remote.post(path, headers=headers, json=payload)
     assert first.status_code == 200
+    assert all(
+        "private note only for the owner" not in item["content"]
+        for item in app.state.inference.last_messages
+    )
     replay = remote.post(path, headers=headers, json=payload)
     assert replay.status_code == 401
 
