@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from lia_core.config import Settings
 from lia_core.conversations import ConversationNotFound, ConversationStore
-from lia_core.dev.patches import PatchConflict, PatchManager, PatchNotFound
 from lia_core.dev.git_ops import GitOperationError, GitOperationManager, GitProposalNotFound
+from lia_core.dev.patches import PatchConflict, PatchManager, PatchNotFound
 from lia_core.dev.tasks import TaskNotAvailable, TaskProposalNotFound, TaskRunner
 from lia_core.dev.workspaces import (
     SensitiveWorkspaceFile,
