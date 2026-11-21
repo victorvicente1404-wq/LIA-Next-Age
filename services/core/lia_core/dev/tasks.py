@@ -9,8 +9,9 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import ClassVar
 
-from lia_core.dev.workspaces import WorkspaceNotFound, WorkspaceRegistry
+from lia_core.dev.workspaces import WorkspaceRegistry
 
 MAX_OUTPUT_CHARS = 12_000
 COMMAND_TIMEOUT_SECONDS = 120
@@ -38,7 +39,7 @@ class TaskProposal:
 class TaskRunner:
     """Runs only fixed, reviewed development tasks after a separate approval."""
 
-    TASK_LABELS = {
+    TASK_LABELS: ClassVar[dict[str, str]] = {
         "git_status": "Git: status",
         "git_diff_stat": "Git: resumo do diff",
         "python_tests": "Python: testes pytest",
@@ -176,7 +177,11 @@ class TaskRunner:
         except subprocess.TimeoutExpired as exc:
             timed_out = True
             captured = exc.stdout or b""
-            output = captured.decode("utf-8", errors="replace") if isinstance(captured, bytes) else captured
+            output = (
+                captured.decode("utf-8", errors="replace")
+                if isinstance(captured, bytes)
+                else captured
+            )
             return_code = None
         duration_ms = round((time.monotonic() - started) * 1000)
         truncated = len(output) > MAX_OUTPUT_CHARS
