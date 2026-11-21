@@ -6,6 +6,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+MEMORY_KINDS = {"fact", "preference", "knowledge", "note"}
+
+
+class MemoryValidationError(ValueError):
+    """Raised when a memory entry is invalid."""
+
 
 class MemoryStore:
     """SQLite store for explicit, user-approved memory entries."""
@@ -68,6 +74,17 @@ class MemoryStore:
                 self._fts_enabled = False
 
     def add(self, kind: str, content: str, key: str | None = None) -> dict[str, Any]:
+        normalized_content = content.strip()
+        normalized_key = key.strip() if key and key.strip() else None
+        if kind not in MEMORY_KINDS:
+            raise MemoryValidationError("Tipo de memória inválido.")
+        if not normalized_content:
+            raise MemoryValidationError("O conteúdo da memória não pode estar vazio.")
+        if len(normalized_content) > 10_000:
+            raise MemoryValidationError("O conteúdo da memória excede 10.000 caracteres.")
+        if normalized_key is not None and len(normalized_key) > 200:
+            raise MemoryValidationError("O identificador excede 200 caracteres.")
+
         created_at = datetime.now(timezone.utc).isoformat()
         with self._connect() as connection:
             cursor = connection.execute(
@@ -75,14 +92,14 @@ class MemoryStore:
                 INSERT INTO memories (kind, memory_key, content, created_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                (kind, key, content.strip(), created_at),
+                (kind, normalized_key, normalized_content, created_at),
             )
             memory_id = int(cursor.lastrowid)
         return {
             "id": memory_id,
             "kind": kind,
-            "key": key,
-            "content": content.strip(),
+            "key": normalized_key,
+            "content": normalized_content,
             "created_at": created_at,
         }
 
@@ -94,9 +111,10 @@ class MemoryStore:
         if kind:
             clauses.append("kind = ?")
             parameters.append(kind)
-        if query:
+        normalized_query = query.strip() if query else ""
+        if normalized_query:
             clauses.append("(content LIKE ? OR memory_key LIKE ?)")
-            pattern = f"%{query.strip()}%"
+            pattern = f"%{normalized_query}%"
             parameters.extend((pattern, pattern))
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         parameters.append(limit)
@@ -122,12 +140,15 @@ class MemoryStore:
         ]
 
     def relevant(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
-        """Return saved preferences plus query matches for optional prompt context."""
-        preferences = self.list(kind="preference", limit=8)
-        terms = list(dict.fromkeys(re.findall(r"[\wÀ-ÿ]{3,}", query.lower())))[:10]
+        """Return persistent preferences and query matches within one total budget."""
+        if limit <= 0:
+            return []
+        preferences = self.list(kind="preference", limit=limit)
+        remaining = limit - len(preferences)
         matches: list[dict[str, Any]] = []
+        terms = list(dict.fromkeys(re.findall(r"[\wÀ-ÿ]{3,}", query.lower())))[:10]
 
-        if terms and self._fts_enabled:
+        if remaining > 0 and terms and self._fts_enabled:
             match_query = " OR ".join(f'"{term}"' for term in terms)
             with self._connect() as connection:
                 rows = connection.execute(
@@ -139,7 +160,7 @@ class MemoryStore:
                     ORDER BY bm25(memories_fts)
                     LIMIT ?
                     """,
-                    (match_query, limit),
+                    (match_query, remaining + len(preferences)),
                 ).fetchall()
             matches = [
                 {
@@ -151,16 +172,16 @@ class MemoryStore:
                 }
                 for row in rows
             ]
-        elif terms:
+        elif remaining > 0 and terms:
             seen: set[int] = set()
             for term in terms:
-                for item in self.list(query=term, limit=limit):
+                for item in self.list(query=term, limit=remaining + len(preferences)):
                     if item["id"] not in seen:
                         matches.append(item)
                         seen.add(item["id"])
-                    if len(matches) >= limit:
+                    if len(matches) >= remaining + len(preferences):
                         break
-                if len(matches) >= limit:
+                if len(matches) >= remaining + len(preferences):
                     break
 
         combined: list[dict[str, Any]] = []
@@ -169,6 +190,8 @@ class MemoryStore:
             if item["id"] not in seen_ids:
                 combined.append(item)
                 seen_ids.add(item["id"])
+            if len(combined) >= limit:
+                break
         return combined
 
     def delete(self, memory_id: int) -> bool:
