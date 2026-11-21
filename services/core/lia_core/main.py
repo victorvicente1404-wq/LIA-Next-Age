@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
@@ -19,7 +19,7 @@ class HealthResponse(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    role: str
+    role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=20000)
 
 
