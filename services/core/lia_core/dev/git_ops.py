@@ -67,9 +67,11 @@ class GitOperationManager:
             "HOME": str(Path.home()),
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_CONFIG_NOSYSTEM": "1",
-            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_COUNT": "2",
             "GIT_CONFIG_KEY_0": "core.hooksPath",
             "GIT_CONFIG_VALUE_0": os.devnull,
+            "GIT_CONFIG_KEY_1": "commit.gpgsign",
+            "GIT_CONFIG_VALUE_1": "false",
         }
         if env_overrides:
             command_env.update(env_overrides)
