@@ -175,3 +175,42 @@ def test_pairing_admin_endpoints_are_loopback_only(tmp_path: Path):
     assert remote.get(
         "/api/v1/pairing/requests", headers={"Origin": "https://lia.test"}
     ).status_code == 403
+
+
+def test_remote_api_stays_closed_when_pairing_is_disabled(tmp_path: Path):
+    settings = Settings(
+        llm_base_url="http://127.0.0.1:8080/v1",
+        llm_model="test-model",
+        data_dir=tmp_path,
+        runtime_backend="llama.cpp",
+        pairing_enabled=False,
+    )
+    app = create_app(settings=settings, inference=FakeModel())
+    remote = TestClient(
+        app, base_url="http://lia.test", client=("192.168.1.20", 45000)
+    )
+    local = TestClient(
+        app, base_url="http://127.0.0.1", client=("127.0.0.1", 45001)
+    )
+
+    blocked = remote.get("/api/v1/conversations")
+    disabled_pairing = remote.post(
+        "/api/v1/pairing/requests",
+        json={"device_name": "Celular", "scopes": ["chat"]},
+    )
+    assert blocked.status_code == 403
+    assert disabled_pairing.status_code == 403
+    assert local.get("/health").status_code == 200
+    assert local.get("/api/v1/conversations").status_code == 200
+
+
+def test_untrusted_browser_origin_cannot_use_local_admin_routes(tmp_path: Path):
+    app = build_pairing_app(tmp_path)
+    local = TestClient(
+        app, base_url="http://127.0.0.1", client=("127.0.0.1", 45001)
+    )
+    response = local.get(
+        "/api/v1/pairing/requests",
+        headers={"Origin": "https://evil.test"},
+    )
+    assert response.status_code == 403
