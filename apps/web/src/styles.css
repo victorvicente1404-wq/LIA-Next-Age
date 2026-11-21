@@ -137,3 +137,18 @@ button, textarea, select, input { font: inherit; }
 .rollback-item code { color: #aeb8ca; font-size: 11px; overflow-wrap: anywhere; }
 .rollback-item button { padding: 7px 10px; border: 1px solid #7c514a; border-radius: 8px; color: #f0b9ae; background: #3a2425; font-size: 11px; cursor: pointer; }
 .rollback-item button:disabled { opacity: .45; cursor: not-allowed; }
+
+.dev-tasks { display: grid; gap: 12px; margin-top: 16px; padding: 15px; border: 1px solid #343947; border-radius: 13px; background: #191d26; }
+.dev-task-heading strong { color: #e1e5ed; font-size: 13px; }
+.dev-task-heading p { margin: 5px 0 0; color: #929daf; font-size: 11px; line-height: 1.5; }
+.dev-task-controls { display: flex; flex-wrap: wrap; gap: 9px; }
+.dev-task-controls select { flex: 1 1 180px; min-width: 0; padding: 10px; border: 1px solid #414858; border-radius: 9px; color: #d5dbe7; background: #141820; }
+.dev-task-controls button { padding: 0 13px; min-height: 38px; border: 0; border-radius: 9px; color: #171820; background: #d5a66b; font-size: 12px; font-weight: 750; cursor: pointer; }
+.dev-task-controls button:disabled { opacity: .45; cursor: not-allowed; }
+.task-review, .task-result { display: grid; gap: 8px; padding: 12px; border: 1px solid #414858; border-radius: 10px; background: #141820; }
+.task-review strong, .task-result-heading strong { color: #e1e5ed; font-size: 12px; }
+.task-review code, .task-result small { color: #aeb8ca; font-size: 11px; overflow-wrap: anywhere; }
+.task-review small { color: #929daf; font-size: 10px; line-height: 1.5; }
+.task-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.task-result-heading span { color: #a8d8c2; font-size: 11px; }
+.task-result pre { max-height: 280px; overflow: auto; margin: 0; padding: 10px; border-radius: 8px; color: #cbd4e2; background: #0e1218; font: 10px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
