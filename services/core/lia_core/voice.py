@@ -76,8 +76,8 @@ class LocalVoice:
 
     def status(self) -> dict[str, object]:
         return {
-            "transcription_enabled": self.transcription_enabled,
-            "synthesis_enabled": self.synthesis_enabled,
+            "transcription_configured": self.transcription_enabled,
+            "synthesis_configured": self.synthesis_enabled,
             "processing": "local_only",
             "transcription_engine": "whisper.cpp",
             "synthesis_engine": "Piper",
