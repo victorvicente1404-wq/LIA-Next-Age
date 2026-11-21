@@ -203,6 +203,12 @@ class TaskRunner:
             else:
                 process.kill()
             process.wait()
+        if os.name == "posix":
+            # Approved task commands must not leave background descendants behind.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         reader.join(timeout=5)
         if reader.is_alive():
             truncated[0] = True
