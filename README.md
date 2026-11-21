@@ -17,13 +17,13 @@ Assistente pessoal local-first, modular e extensível.
 2. **Núcleo:** API Python para conversação, roteamento, políticas e coordenação de ferramentas.
 3. **Runtime local:** adaptador OpenAI-compatible para llama.cpp; OpenJarvis é uma base avaliada para integração futura.
 4. **Memória:** SQLite local, independente do modelo, com operações explícitas de criar, pesquisar e apagar.
-5. **Lia Dev:** workspace sandbox, operações Git, diffs, testes e terminal com allowlist/aprovação.
+5. **Lia Dev:** primeira camada de inspeção somente leitura em workspaces explicitamente autorizados; diffs, alterações e terminal controlado serão etapas posteriores.
 6. **Percepção e voz:** módulos opcionais para áudio, câmera e contexto, sempre com indicadores e consentimento.
 7. **Conectores:** adaptadores independentes para WhatsApp, Google e dispositivos domésticos.
 
 ## Política de provedores
 
-O modelo local é o padrão. Provedores remotos podem ser configurados voluntariamente como opção, mas nunca devem ser acionados silenciosamente nem ser requisito para o funcionamento básico. A API de chat atual envia mensagens apenas para o endpoint local configurado e informa external_traffic=false.
+O modelo local é o padrão. Provedores remotos podem ser configurados voluntariamente como opção, mas nunca devem ser acionados silenciosamente nem ser requisito para o funcionamento básico. A API de chat atual envia mensagens apenas para o endpoint local configurado e informa `external_traffic: false`.
 
 ## Segurança
 
@@ -34,6 +34,7 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - Exigir aprovação para escrita, instalação de dependências, execução de comandos e acesso a dados sensíveis.
 - Registrar ações e permitir desfazer alterações sempre que possível.
 - A interface e a API de desenvolvimento são vinculadas ao loopback; não as exponha à rede antes de implementar autenticação e pareamento de dispositivos.
+- Lia Dev só enxerga pastas adicionadas explicitamente à allowlist `LIA_DEV_WORKSPACES`; leitura de arquivos de segredos é bloqueada.
 
 ## Progresso
 
@@ -43,14 +44,16 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] Adaptador de inferência local para llama.cpp.
 - [x] Memória SQLite independente do modelo.
 - [x] Testes básicos para chat, saúde e persistência.
-- [ ] Executar CI e validar build em ambiente real.
+- [x] Lia Dev: listar workspaces autorizados, navegar pastas e ler arquivos de texto com limites.
+- [x] CI para testes Python, Ruff e build web.
 - [ ] Recuperar memórias relevantes no contexto de conversa, com política de privacidade.
-- [ ] Implementar Lia Dev em sandbox com fluxo de aprovação.
+- [ ] Lia Dev: diff/patch revisável, aprovação, sandbox e operações Git.
 - [ ] Integrar voz, percepção e conectores opcionais.
 - [ ] Avaliar integração direta com OpenJarvis sem quebrar compatibilidade Android.
+- [ ] Validar execução no aparelho Android/Termux.
 
 ## Rodar localmente
 
 Consulte [o guia Android/Termux](docs/ANDROID_TERMUX.md) e [o guia do núcleo](services/core/README.md).
 
-Este repositório é a nova base da Lia. O branch foundation/bootstrap é o ambiente de desenvolvimento; a branch main permanece intacta até a revisão e validação da fundação.
+Este repositório é a nova base da Lia. O branch `foundation/bootstrap` é o ambiente de desenvolvimento; a branch `main` permanece intacta até a revisão e validação da fundação.
