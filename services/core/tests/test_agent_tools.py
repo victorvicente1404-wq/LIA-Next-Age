@@ -66,3 +66,26 @@ def test_registry_denial_never_dispatches_tool():
 
     assert not result.success
     assert calls == []
+
+
+def test_registry_enforces_tool_argument_schemas(tmp_path: Path):
+    registry = build_default_registry(MemoryStore(tmp_path / "memory.sqlite3"))
+
+    missing = registry.execute("calculator", {})
+    extra = registry.execute(
+        "calculator", {"expression": "2+2", "command": "whoami"}
+    )
+    wrong_type = registry.execute("calculator", {"expression": 42})
+    too_long = registry.execute("calculator", {"expression": "1" * 161})
+    valid = registry.execute("calculator", {"expression": "2+2"})
+
+    assert not missing.success
+    assert "obrigatório" in missing.content
+    assert not extra.success
+    assert "não permitido" in extra.content
+    assert not wrong_type.success
+    assert "Tipo inválido" in wrong_type.content
+    assert not too_long.success
+    assert "muito longo" in too_long.content
+    assert valid.success
+    assert valid.content == "4"
