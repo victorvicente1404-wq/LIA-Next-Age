@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import ipaddress
 from typing import Literal, Protocol
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
@@ -23,6 +24,7 @@ from lia_core.dev.workspaces import (
 from lia_core.inference.factory import create_inference_client
 from lia_core.inference.llamacpp import LocalModelError
 from lia_core.memory.store import MemoryStore
+from lia_core.pairing import PairingError, PairingStore
 from lia_core.voice import LocalVoice, VoiceProcessingError, VoiceUnavailable
 
 
@@ -80,6 +82,23 @@ class ChatResponse(BaseModel):
     tool_calls: int = 0
     agent_turns: int = 1
     plan: list[str] = Field(default_factory=list)
+
+
+class PairingRequestCreate(BaseModel):
+    device_name: str = Field(min_length=1, max_length=64)
+    scopes: list[str] = Field(default_factory=lambda: ["chat", "voice"], min_length=1, max_length=2)
+
+
+class PairingApproval(BaseModel):
+    pairing_code: str = Field(min_length=8, max_length=32)
+
+
+class PairingRequestResponse(BaseModel):
+    request_id: str
+    pairing_code: str
+    expires_in_seconds: int
+    requested_scopes: list[str]
+    instructions: str
 
 
 class VoiceSpeechRequest(BaseModel):
@@ -269,6 +288,137 @@ def create_app(
     app.state.tasks = TaskRunner(app.state.workspaces)
     app.state.git_operations = GitOperationManager(app.state.workspaces)
     app.state.inference_configured = bool(config.llm_base_url)
+    app.state.pairing = PairingStore(
+        config.data_dir / "pairing.sqlite3",
+        token_ttl_seconds=config.pairing_token_ttl_seconds,
+    )
+
+    def is_loopback(request: Request) -> bool:
+        host = request.client.host if request.client else ""
+        try:
+            return ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return False
+
+    @app.middleware("http")
+    async def enforce_device_access(request: Request, call_next):
+        if not config.pairing_enabled or not request.url.path.startswith("/api/v1/"):
+            return await call_next(request)
+        if is_loopback(request):
+            return await call_next(request)
+        if request.url.scheme != "https":
+            return Response(
+                content='{"detail":"Acesso remoto exige HTTPS com certificado válido."}',
+                status_code=403,
+                media_type="application/json",
+            )
+        origin = request.headers.get("origin")
+        if origin and origin.rstrip("/") not in config.allowed_origins:
+            return Response(
+                content='{"detail":"Origem não autorizada."}',
+                status_code=403,
+                media_type="application/json",
+            )
+        path = request.url.path
+        if path.startswith("/api/v1/dev/") or path.startswith("/api/v1/dev-"):
+            return Response(
+                content='{"detail":"Lia Dev permanece disponível somente no dispositivo principal."}',
+                status_code=403,
+                media_type="application/json",
+            )
+        if path == "/api/v1/pairing/requests" and request.method == "POST":
+            return await call_next(request)
+        if path.startswith("/api/v1/pairing/"):
+            return Response(
+                content='{"detail":"Administração de pareamento exige acesso local."}',
+                status_code=403,
+                media_type="application/json",
+            )
+        if request.method == "OPTIONS":
+            return Response(status_code=403)
+        required_scope = "chat"
+        if path.startswith("/api/v1/voice/"):
+            required_scope = "voice"
+        elif path.startswith("/api/v1/memories/"):
+            required_scope = "memory:write" if request.method in {"POST", "DELETE", "PUT", "PATCH"} else "memory:read"
+        authorization = request.headers.get("authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            return Response(
+                content='{"detail":"Dispositivo não autenticado."}',
+                status_code=401,
+                media_type="application/json",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        device = request.app.state.pairing.authenticate(token)
+        if device is None:
+            return Response(
+                content='{"detail":"Token inválido, expirado ou revogado."}',
+                status_code=401,
+                media_type="application/json",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if required_scope not in device["scopes"]:
+            return Response(
+                content='{"detail":"O dispositivo não possui a permissão necessária."}',
+                status_code=403,
+                media_type="application/json",
+            )
+        request.state.paired_device = {
+            "device_id": device["device_id"],
+            "device_name": device["device_name"],
+        }
+        return await call_next(request)
+
+
+    @app.post(
+        "/api/v1/pairing/requests",
+        response_model=PairingRequestResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def create_pairing_request(
+        payload: PairingRequestCreate, request: Request
+    ) -> PairingRequestResponse:
+        if config.pairing_enabled and not is_loopback(request) and request.url.scheme != "https":
+            raise HTTPException(status_code=403, detail="Pareamento remoto exige HTTPS.")
+        try:
+            result = request.app.state.pairing.create_request(
+                payload.device_name, payload.scopes
+            )
+        except PairingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return PairingRequestResponse(**result)
+
+    @app.get("/api/v1/pairing/requests")
+    async def list_pairing_requests(request: Request) -> list[dict[str, object]]:
+        if not is_loopback(request):
+            raise HTTPException(status_code=403, detail="Aprovação exige acesso local.")
+        return request.app.state.pairing.list_pending()
+
+    @app.post("/api/v1/pairing/requests/{request_id}/approve")
+    async def approve_pairing_request(
+        request_id: str, payload: PairingApproval, request: Request
+    ) -> dict[str, object]:
+        if not is_loopback(request):
+            raise HTTPException(status_code=403, detail="Aprovação exige acesso local.")
+        try:
+            return request.app.state.pairing.approve(request_id, payload.pairing_code)
+        except PairingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/v1/pairing/devices")
+    async def list_paired_devices(request: Request) -> list[dict[str, object]]:
+        if not is_loopback(request):
+            raise HTTPException(status_code=403, detail="Administração exige acesso local.")
+        return request.app.state.pairing.list_devices()
+
+    @app.delete("/api/v1/pairing/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def revoke_paired_device(device_id: str, request: Request) -> Response:
+        if not is_loopback(request):
+            raise HTTPException(status_code=403, detail="Revogação exige acesso local.")
+        if not request.app.state.pairing.revoke(device_id):
+            raise HTTPException(status_code=404, detail="Dispositivo não encontrado ou já revogado.")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
