@@ -99,7 +99,7 @@ class PairingStore:
         allowed = self._normalize_scopes(scopes)
         now = int(time.time())
         request_id = uuid.uuid4().hex
-        code = secrets.token_urlsafe(9)
+        code = secrets.token_urlsafe(32)
         with closing(self._connect()) as connection:
             connection.execute(
                 "DELETE FROM pairing_requests WHERE expires_at < ? OR status != 'pending'",
@@ -154,7 +154,7 @@ class PairingStore:
 
     def approve(self, request_id: str, pairing_code: str) -> dict[str, Any]:
         now = int(time.time())
-        token = secrets.token_urlsafe(32)
+        token = pairing_code
         device_id = uuid.uuid4().hex
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -198,11 +198,9 @@ class PairingStore:
         return {
             "device_id": device_id,
             "device_name": row["device_name"],
-            "access_token": token,
-            "token_type": "Bearer",
             "expires_at": now + self._token_ttl,
             "scopes": scopes.split(),
-            "warning": "Copie o token agora. Ele não será exibido novamente.",
+            "warning": "O código informado passa a ser o token Bearer do dispositivo; a aprovação não retorna nenhum segredo.",
         }
 
     def authenticate(self, token: str) -> dict[str, Any] | None:
