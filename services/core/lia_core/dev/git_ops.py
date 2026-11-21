@@ -15,6 +15,7 @@ from lia_core.dev.workspaces import WorkspaceRegistry
 
 PROPOSAL_TTL_SECONDS = 300
 MAX_OUTPUT = 12000
+MAX_DIFF_BYTES = 5_000_000
 PROTECTED_BRANCHES = {"main", "master"}
 SENSITIVE_PARTS = {".env", ".ssh", ".aws", ".azure", ".kube", ".docker"}
 SENSITIVE_SUFFIXES = {".pem", ".key", ".p12", ".pfx"}
@@ -50,7 +51,7 @@ class GitOperationManager:
         self._git = shutil.which("git")
 
     def _run(
-        self, root: Path, *arguments: str, check: bool = True
+        self, root: Path, *arguments: str, check: bool = True, capture_full: bool = False
     ) -> subprocess.CompletedProcess[str]:
         if not self._git:
             raise GitOperationError("Git não está instalado neste ambiente.")
@@ -79,7 +80,7 @@ class GitOperationManager:
             )
         except subprocess.TimeoutExpired as exc:
             raise GitOperationError("A operação Git excedeu 20 segundos.") from exc
-        output = result.stdout[-MAX_OUTPUT:]
+        output = result.stdout if capture_full else result.stdout[-MAX_OUTPUT:]
         if check and result.returncode:
             raise GitOperationError(output.strip() or "O Git recusou a operação.")
         return subprocess.CompletedProcess(result.args, result.returncode, output)
@@ -101,6 +102,18 @@ class GitOperationManager:
     @staticmethod
     def _fingerprint(value: str) -> str:
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+    def _commit_diff(self, root: Path, paths: list[str]) -> str:
+        result = self._run(
+            root, "diff", "HEAD", "--binary", "--", *paths,
+            check=False, capture_full=True
+        )
+        if len(result.stdout.encode("utf-8")) > MAX_DIFF_BYTES:
+            raise GitOperationError(
+                "O diff selecionado excede o limite de 5 MB para revisão segura."
+            )
+        return result.stdout
 
     def _purge(self) -> None:
         now = time.monotonic()
@@ -217,7 +230,7 @@ class GitOperationManager:
                 tracked = self._run(root, "ls-files", "--error-unmatch", "--", path, check=False)
                 if tracked.returncode != 0:
                     raise GitOperationError(f"'{path}' não é um arquivo já rastreado pelo Git.")
-            diff = self._run(root, "diff", "HEAD", "--binary", "--", *paths, check=False).stdout
+            diff = self._commit_diff(root, paths)
             if not diff.strip():
                 raise GitOperationError("Os arquivos selecionados não têm alterações para commit.")
             fingerprint = self._fingerprint(diff)
@@ -283,7 +296,7 @@ class GitOperationManager:
             raise GitOperationError("O workspace deixou de estar limpo. Operação cancelada.")
         if proposal.action == "commit":
             paths = proposal.parameters["paths"]
-            current_diff = self._run(root, "diff", "HEAD", "--binary", "--", *paths).stdout
+            current_diff = self._commit_diff(root, paths)
             if self._fingerprint(current_diff) != proposal.fingerprint:
                 raise GitOperationError("Os arquivos mudaram desde a revisão. Gere um novo commit proposto.")
             result = self._run(
