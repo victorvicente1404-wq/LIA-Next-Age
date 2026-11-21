@@ -20,6 +20,24 @@ type AppliedPatch = {
   path: string;
   status: string;
 };
+type DevTask = { task: string; label: string; command: string };
+type TaskProposal = {
+  proposal_id: string;
+  label: string;
+  command: string;
+  cwd: string;
+  expires_in_seconds: string;
+};
+type TaskResult = {
+  label: string;
+  command: string;
+  success: boolean;
+  timed_out: boolean;
+  return_code: number | null;
+  duration_ms: number;
+  output: string;
+  output_truncated: boolean;
+};
 
 async function requestJson<T>(
   url: string,
@@ -45,6 +63,10 @@ export default function DevPanel() {
   const [proposal, setProposal] = useState<PatchProposal | null>(null);
   const [applied, setApplied] = useState<AppliedPatch | null>(null);
   const [rollbacks, setRollbacks] = useState<AppliedPatch[]>([]);
+  const [tasks, setTasks] = useState<DevTask[]>([]);
+  const [selectedTask, setSelectedTask] = useState("");
+  const [taskProposal, setTaskProposal] = useState<TaskProposal | null>(null);
+  const [taskResult, setTaskResult] = useState<TaskResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -67,6 +89,31 @@ export default function DevPanel() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setTasks([]);
+      setSelectedTask("");
+      setTaskProposal(null);
+      setTaskResult(null);
+      return;
+    }
+    let active = true;
+    requestJson<DevTask[]>(`/api/v1/dev/workspaces/${workspaceId}/tasks`)
+      .then((items) => {
+        if (!active) return;
+        setTasks(items);
+        setSelectedTask(items[0]?.task ?? "");
+        setTaskProposal(null);
+        setTaskResult(null);
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Falha ao carregar tarefas.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspaceId]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -204,6 +251,59 @@ export default function DevPanel() {
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível aplicar a alteração.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function prepareTask() {
+    if (!selectedTask || saving) return;
+    setSaving(true);
+    setError("");
+    setTaskResult(null);
+    try {
+      const result = await requestJson<TaskProposal>(
+        `/api/v1/dev/workspaces/${workspaceId}/tasks`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task: selectedTask }),
+        },
+      );
+      setTaskProposal(result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível preparar a tarefa.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function cancelTask() {
+    if (!taskProposal) return;
+    try {
+      await requestJson<void>(
+        `/api/v1/dev/tasks/${taskProposal.proposal_id}`,
+        { method: "DELETE" },
+      );
+    } catch {
+      // Expired proposals are safe to discard locally.
+    }
+    setTaskProposal(null);
+  }
+
+  async function approveTask() {
+    if (!taskProposal || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await requestJson<TaskResult>(
+        `/api/v1/dev/tasks/${taskProposal.proposal_id}/execute`,
+        { method: "POST" },
+      );
+      setTaskResult(result);
+      setTaskProposal(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "A tarefa não pôde ser executada.");
     } finally {
       setSaving(false);
     }
@@ -365,6 +465,66 @@ export default function DevPanel() {
         </div>
       )}
 
+
+
+      <section className="dev-tasks">
+        <div className="dev-task-heading">
+          <div>
+            <strong>Ferramentas de execução</strong>
+            <p>Somente tarefas predefinidas. Cada execução exige uma aprovação separada.</p>
+          </div>
+        </div>
+        {tasks.length > 0 ? (
+          <div className="dev-task-controls">
+            <select
+              aria-label="Tarefa de desenvolvimento"
+              value={selectedTask}
+              onChange={(event) => {
+                setSelectedTask(event.target.value);
+                setTaskProposal(null);
+                setTaskResult(null);
+              }}
+              disabled={saving || Boolean(taskProposal)}
+            >
+              {tasks.map((task) => (
+                <option key={task.task} value={task.task}>{task.label}</option>
+              ))}
+            </select>
+            {!taskProposal && (
+              <button type="button" onClick={() => void prepareTask()} disabled={saving || !selectedTask}>
+                {saving ? "Preparando…" : "Revisar comando"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <p className="dev-message">Nenhuma tarefa compatível com este workspace.</p>
+        )}
+        {taskProposal && (
+          <div className="task-review">
+            <strong>{taskProposal.label}</strong>
+            <code>{taskProposal.command}</code>
+            <small>Diretório: {taskProposal.cwd}</small>
+            <small>Expira em {Math.floor(Number(taskProposal.expires_in_seconds) / 60)} minutos. A execução pode alterar arquivos do projeto.</small>
+            <div className="patch-actions">
+              <button type="button" className="secondary-action" onClick={() => void cancelTask()} disabled={saving}>Cancelar</button>
+              <button type="button" onClick={() => void approveTask()} disabled={saving}>
+                {saving ? "Executando…" : "Aprovar e executar"}
+              </button>
+            </div>
+          </div>
+        )}
+        {taskResult && (
+          <div className="task-result">
+            <div className="task-result-heading">
+              <strong>{taskResult.label}</strong>
+              <span>{taskResult.success ? "Concluído" : taskResult.timed_out ? "Tempo esgotado" : `Código ${taskResult.return_code}`}</span>
+            </div>
+            <small>{taskResult.command} · {taskResult.duration_ms} ms</small>
+            <pre>{taskResult.output || "(sem saída)"}</pre>
+            {taskResult.output_truncated && <small>Saída limitada para proteger a interface.</small>}
+          </div>
+        )}
+      </section>
 
       {rollbacks.length > 0 && (
         <div className="rollback-list">
