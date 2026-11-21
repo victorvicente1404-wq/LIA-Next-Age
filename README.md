@@ -15,7 +15,7 @@ Assistente pessoal local-first, modular e extensível.
 
 1. **Interface:** aplicação web responsiva (Vite/React), utilizável no celular e no desktop.
 2. **Núcleo:** API Python para conversação, roteamento, políticas e coordenação de ferramentas.
-3. **Runtime local:** adaptador OpenJarvis opcional para seu motor LlamaCppEngine; adaptador HTTP direto para llama.cpp como caminho compatível e fallback exclusivamente local.
+3. **Runtime local:** contrato de inferência da Lia com adaptadores para llama.cpp HTTP e OpenJarvis LlamaCppEngine. O motor é substituível; a orquestração pertence à Lia.
 4. **Histórico e memória:** histórico de conversas em SQLite separado da memória de longo prazo; memória independente do modelo, com gerenciamento explícito, validação e recuperação contextual limitada a cinco itens por turno.
 5. **Lia Dev:** interface de exploração, leitura de workspaces autorizados, propostas de patch com diff, tarefas predefinidas e operações Git tipadas; escritas e execuções exigem aprovação explícita, verificação contra alterações concorrentes e rollback quando aplicável. Propostas pendentes expiram e são de uso único.
 6. **Percepção e voz:** módulos opcionais para áudio, câmera e contexto, sempre com indicadores e consentimento.
@@ -50,13 +50,13 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] CI: testes Python, Ruff e build web.
 - [x] Lia Dev: proposta de patch com diff, aprovação em endpoint separado, verificação de versão, escrita atômica e backup para rollback.
 - [x] Lia Dev: tarefas tipadas e predefinidas (Git status/diff, pytest, Ruff e build web), com prévia, aprovação separada, timeout e saída limitada.
-- [ ] Lia Dev: operações Git de escrita (branch, commit, checkout e rollback) com revisão e aprovação.
+- [x] Lia Dev: operações Git tipadas (branch, commit, checkout e revert) com revisão e aprovação.
 - [ ] Integrar voz, percepção e conectores opcionais.
-- [ ] Integrar agentes e primitivas OpenJarvis sem instalar dependências pesadas obrigatórias no Android.
+- [x] Primeira versão do orquestrador cognitivo próprio da Lia, com loop limitado e ferramentas locais allowlisted; OpenJarvis opcional como runtime.
 - [ ] Definir e validar o ambiente de execução quando a fundação estiver pronta (sem exigir Termux nesta etapa).
 
 ## Rodar localmente
 
 Consulte [o guia Android/Termux](docs/ANDROID_TERMUX.md), [o guia do núcleo](services/core/README.md) e [as decisões de integração OpenJarvis](docs/DECISIONS.md).
 
-Este repositório é a nova base da Lia. O branch `foundation/bootstrap` concentra o desenvolvimento ativo; as alterações desta etapa ainda não foram integradas à branch `main`.
+Este repositório é a nova base da Lia. O branch `foundation/bootstrap` concentra o desenvolvimento ativo. Consulte a comparação entre branches antes de integrar novas etapas.
