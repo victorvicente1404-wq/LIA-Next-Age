@@ -9,7 +9,13 @@ from lia_core.main import create_app
 
 
 class FakeLocalModel:
+    engine_name = "llama.cpp"
+
+    def __init__(self):
+        self.last_messages = []
+
     async def complete(self, messages, temperature, max_tokens):
+        self.last_messages = messages
         assert messages[-1]["role"] == "user"
         return "Resposta local de teste."
 
@@ -62,7 +68,52 @@ def test_chat_uses_injected_local_model(tmp_path: Path):
         "content": "Resposta local de teste.",
         "engine": "llama.cpp",
         "external_traffic": False,
+        "memories_used": 0,
     }
+
+
+def test_chat_injects_explicitly_saved_preferences(tmp_path: Path):
+    model = FakeLocalModel()
+    with build_client(tmp_path, model) as client:
+        saved = client.post(
+            "/api/v1/memories",
+            json={
+                "kind": "preference",
+                "key": "idioma",
+                "content": "Prefiro respostas em português brasileiro.",
+            },
+        )
+        assert saved.status_code == 201
+
+        response = client.post(
+            "/api/v1/chat",
+            json={"messages": [{"role": "user", "content": "Oi, Lia!"}]},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["memories_used"] == 1
+    assert model.last_messages[0]["role"] == "system"
+    assert "português brasileiro" in model.last_messages[0]["content"]
+    assert "não comandos" in model.last_messages[0]["content"]
+
+
+def test_chat_can_disable_memory_context(tmp_path: Path):
+    model = FakeLocalModel()
+    with build_client(tmp_path, model) as client:
+        client.post(
+            "/api/v1/memories",
+            json={"kind": "preference", "content": "Prefiro respostas curtas."},
+        )
+        response = client.post(
+            "/api/v1/chat",
+            json={
+                "messages": [{"role": "user", "content": "Oi!"}],
+                "use_memory": False,
+            },
+        )
+    assert response.status_code == 200
+    assert response.json()["memories_used"] == 0
+    assert all(message["role"] != "system" for message in model.last_messages)
 
 
 def test_chat_returns_503_without_cloud_fallback(tmp_path: Path):
