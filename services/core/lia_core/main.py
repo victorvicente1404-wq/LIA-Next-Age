@@ -92,7 +92,7 @@ class PairingRequestCreate(BaseModel):
 
 
 class PairingApproval(BaseModel):
-    pairing_code: str = Field(min_length=8, max_length=32)
+    pairing_code: str = Field(min_length=8, max_length=64)
 
 
 class PairingRequestResponse(BaseModel):
