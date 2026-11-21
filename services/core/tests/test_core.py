@@ -18,11 +18,14 @@ class UnavailableLocalModel:
         raise LocalModelError("local model is offline")
 
 
-def build_client(tmp_path: Path, inference=None) -> TestClient:
+def build_client(
+    tmp_path: Path, inference=None, dev_workspaces: tuple[Path, ...] = ()
+) -> TestClient:
     settings = Settings(
         llm_base_url="http://127.0.0.1:8080/v1",
         llm_model="test-model",
         data_dir=tmp_path,
+        dev_workspaces=dev_workspaces,
     )
     return TestClient(
         create_app(settings=settings, inference=inference, memory_path=tmp_path / "memory.sqlite3")
@@ -88,3 +91,39 @@ def test_memory_is_persistent_and_searchable(tmp_path: Path):
         assert deleted.status_code == 204
         missing = client.delete(f"/api/v1/memories/{memory_id}")
         assert missing.status_code == 404
+
+
+def test_lia_dev_reads_only_configured_workspace(tmp_path: Path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    (workspace / "src").mkdir()
+    (workspace / "src" / "main.py").write_text("print('hello')", encoding="utf-8")
+    (workspace / ".env").write_text("SECRET=do-not-read", encoding="utf-8")
+
+    with build_client(tmp_path, dev_workspaces=(workspace,)) as client:
+        workspaces = client.get("/api/v1/dev/workspaces")
+        assert workspaces.json() == [{"id": "workspace-1", "name": "project"}]
+
+        files = client.get("/api/v1/dev/workspaces/workspace-1/files")
+        paths = {entry["path"] for entry in files.json()}
+        assert "src" in paths
+        assert ".env" not in paths
+
+        source = client.get(
+            "/api/v1/dev/workspaces/workspace-1/file",
+            params={"path": "src/main.py"},
+        )
+        assert source.status_code == 200
+        assert source.json()["content"] == "print('hello')"
+
+        secret = client.get(
+            "/api/v1/dev/workspaces/workspace-1/file",
+            params={"path": ".env"},
+        )
+        assert secret.status_code == 403
+
+        traversal = client.get(
+            "/api/v1/dev/workspaces/workspace-1/files",
+            params={"path": "../"},
+        )
+        assert traversal.status_code == 400
