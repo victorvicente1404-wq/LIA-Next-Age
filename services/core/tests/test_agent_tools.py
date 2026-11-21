@@ -45,3 +45,24 @@ def test_default_tools_are_local_and_memory_search_is_read_only(tmp_path: Path):
     result = registry.execute("memory_search", {"query": "armazenamento local"})
     assert result.success
     assert "armazenamento local" in result.content
+
+
+def test_registry_denial_never_dispatches_tool():
+    calls = []
+
+    class RestrictedTool:
+        @property
+        def spec(self):
+            return ToolSpec("restricted", "restricted operation", {"type": "object"})
+
+        def execute(self, **arguments):
+            calls.append(arguments)
+            return ToolResult("restricted", "executed")
+
+    registry = ToolRegistry(ToolPolicy(set()))
+    registry.register(RestrictedTool())
+
+    result = registry.execute("restricted", {"value": "x"})
+
+    assert not result.success
+    assert calls == []
