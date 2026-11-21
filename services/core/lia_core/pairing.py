@@ -154,8 +154,7 @@ class PairingStore:
 
     def approve(self, request_id: str, pairing_code: str) -> dict[str, Any]:
         now = int(time.time())
-        token = pairing_code
-        device_id = uuid.uuid4().hex
+        device_id = request_id
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
@@ -187,7 +186,7 @@ class PairingStore:
                 (id, name, token_hash, scopes, created_at, expires_at)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (device_id, row["device_name"], self._hash(token), scopes, now,
+                (device_id, row["device_name"], self._hash(pairing_code), scopes, now,
                  now + self._token_ttl),
             )
             connection.execute(
@@ -200,21 +199,21 @@ class PairingStore:
             "device_name": row["device_name"],
             "expires_at": now + self._token_ttl,
             "scopes": scopes.split(),
-            "warning": "O código informado passa a ser o token Bearer do dispositivo; a aprovação não retorna nenhum segredo.",
+            "warning": "O dispositivo usa o código para derivar uma chave HMAC local; nenhum segredo é devolvido pela aprovação.",
         }
 
-    def authenticate(self, token: str) -> dict[str, Any] | None:
-        if not token or len(token) > 256:
+    def authenticate(self, device_id: str) -> dict[str, Any] | None:
+        if not device_id or len(device_id) > 64:
             return None
         now = int(time.time())
         with closing(self._connect()) as connection:
             row = connection.execute(
                 """
-                SELECT id, name, scopes, expires_at
+                SELECT id, name, token_hash, scopes, expires_at
                 FROM paired_devices
-                WHERE token_hash = ? AND revoked_at IS NULL AND expires_at >= ?
+                WHERE id = ? AND revoked_at IS NULL AND expires_at >= ?
                 """,
-                (self._hash(token), now),
+                (device_id, now),
             ).fetchone()
         if row is None:
             return None
@@ -223,12 +222,12 @@ class PairingStore:
             "device_name": row["name"],
             "scopes": frozenset(row["scopes"].split()),
             "expires_at": row["expires_at"],
+            "signing_key": bytes.fromhex(row["token_hash"]),
         }
 
     def verify_request_signature(
         self,
         device: dict[str, Any],
-        token: str,
         method: str,
         path_and_query: str,
         timestamp: str,
@@ -242,8 +241,8 @@ class PairingStore:
         now = int(time.time())
         if abs(now - issued_at) > 60 or not 16 <= len(nonce) <= 128:
             return False
-        message = f"{method.upper()}\n{path_and_query}\n{timestamp}\n{nonce}".encode()
-        expected = hmac.new(token.encode("utf-8"), message, hashlib.sha256).hexdigest()
+        message = f"{method.upper()}\\n{path_and_query}\\n{timestamp}\\n{nonce}".encode()
+        expected = hmac.new(device["signing_key"], message, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, signature.lower()):
             return False
         with closing(self._connect()) as connection:
