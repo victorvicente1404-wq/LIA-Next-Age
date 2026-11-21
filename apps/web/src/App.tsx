@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import DevPanel from "./DevPanel";
 import MemoryPanel from "./MemoryPanel";
 
@@ -32,6 +32,12 @@ type CoreHealth = {
 
 type ActiveTab = "chat" | "memory" | "dev";
 
+type VoiceStatus = {
+  transcription_configured: boolean;
+  synthesis_configured: boolean;
+  processing: string;
+};
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
@@ -42,6 +48,12 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [playingMessage, setPlayingMessage] = useState<number | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -75,6 +87,18 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    fetch("/api/v1/voice/status")
+      .then((response) => {
+        if (!response.ok) throw new Error("Status de voz indisponível.");
+        return response.json() as Promise<VoiceStatus>;
+      })
+      .then((status) => { if (active) setVoiceStatus(status); })
+      .catch(() => { if (active) setVoiceStatus(null); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     const checkHealth = async () => {
       try {
         const response = await fetch("/health");
@@ -93,12 +117,11 @@ export default function App() {
     };
   }, []);
 
-  async function sendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const content = draft.trim();
-    if (!content || busy) return;
+  async function submitMessage(content: string) {
+    const normalized = content.trim();
+    if (!normalized || busy) return;
 
-    const nextMessages: Message[] = [...messages, { role: "user", content }];
+    const nextMessages: Message[] = [...messages, { role: "user", content: normalized }];
     setMessages(nextMessages);
     setDraft("");
     setError("");
@@ -162,6 +185,109 @@ export default function App() {
       setError(cause instanceof Error ? cause.message : "Falha ao enviar mensagem.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitMessage(draft);
+  }
+
+  async function toggleRecording() {
+    if (recording) {
+      recorderRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+    if (!voiceStatus?.transcription_configured) {
+      setError("O reconhecimento local ainda não está configurado. Configure o servidor whisper.cpp.");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setError("Este navegador não oferece gravação de áudio compatível.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        recorderRef.current = null;
+        const audio = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        if (!audio.size) {
+          setError("Nenhum áudio foi capturado.");
+          return;
+        }
+        setVoiceBusy(true);
+        setError("");
+        try {
+          const response = await fetch("/api/v1/voice/transcriptions", {
+            method: "POST",
+            headers: { "Content-Type": audio.type || "audio/webm" },
+            body: audio,
+          });
+          const data = (await response.json()) as { text?: string; detail?: string };
+          if (!response.ok) throw new Error(data.detail ?? "Não foi possível transcrever o áudio.");
+          if (data.text) await submitMessage(data.text);
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : "Falha ao reconhecer a fala.");
+        } finally {
+          setVoiceBusy(false);
+        }
+      };
+      recorder.onerror = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        setRecording(false);
+        setError("A gravação foi interrompida pelo navegador.");
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível acessar o microfone.");
+    }
+  }
+
+  async function speakMessage(content: string, index: number) {
+    if (!voiceStatus?.synthesis_configured || playingMessage !== null) return;
+    setPlayingMessage(index);
+    setError("");
+    try {
+      const response = await fetch("/api/v1/voice/speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: content }),
+      });
+      if (!response.ok) {
+        const data = (await response.json()) as { detail?: string };
+        throw new Error(data.detail ?? "Não foi possível sintetizar a resposta.");
+      }
+      const audioUrl = URL.createObjectURL(await response.blob());
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        audioRef.current = null;
+        setPlayingMessage(null);
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        audioRef.current = null;
+        setPlayingMessage(null);
+        setError("O navegador não conseguiu reproduzir o áudio.");
+      };
+      await audio.play();
+    } catch (cause) {
+      setPlayingMessage(null);
+      setError(cause instanceof Error ? cause.message : "Falha ao reproduzir a resposta.");
     }
   }
 
@@ -312,11 +438,29 @@ export default function App() {
                 rows={2}
                 disabled={busy || historyLoading}
               />
-              <button type="submit" disabled={busy || historyLoading || !draft.trim()}>
-                {busy ? "…" : "Enviar"}
+              <button
+                type="button"
+                className={recording ? "voice-button recording" : "voice-button"}
+                onClick={() => void toggleRecording()}
+                disabled={busy || historyLoading || voiceBusy || !voiceStatus?.transcription_configured}
+                aria-label={recording ? "Parar gravação" : "Gravar mensagem"}
+                title={recording ? "Parar gravação" : "Gravar mensagem"}
+              >
+                {recording ? "Parar" : "Mic"}
+              </button>
+              <button type="submit" disabled={busy || historyLoading || voiceBusy || !draft.trim()}>
+                {busy || voiceBusy ? "…" : "Enviar"}
               </button>
             </form>
             <footer className="footer-note">
+              {recording
+                ? "Gravando… toque em Parar para transcrever localmente"
+                : voiceBusy
+                  ? "Reconhecendo sua fala no mecanismo local…"
+                  : voiceStatus?.transcription_configured || voiceStatus?.synthesis_configured
+                    ? `Voz local: ${voiceStatus.transcription_configured ? "reconhecimento" : "sem reconhecimento"} · ${voiceStatus.synthesis_configured ? "síntese" : "sem síntese"}`
+                    : "Voz local ainda não configurada"}
+              {" · "}
               {health?.inference === "local_endpoint_configured"
                 ? "Inferência configurada para o servidor local · nenhum fallback remoto"
                 : "Inicie o núcleo Python e o servidor llama.cpp para conversar"}
