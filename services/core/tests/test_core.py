@@ -69,6 +69,10 @@ def test_chat_uses_injected_local_model(tmp_path: Path):
         "engine": "llama.cpp",
         "external_traffic": False,
         "memories_used": 0,
+        "agent": "simple",
+        "tool_calls": 0,
+        "agent_turns": 1,
+        "plan": [],
     }
 
 
