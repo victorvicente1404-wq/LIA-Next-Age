@@ -73,13 +73,13 @@ def test_git_branch_commit_and_revert_require_review_and_approval(tmp_path: Path
         )
         assert commit_proposal.status_code == 201
         assert "README.md" in commit_proposal.json()["preview"]
-        assert git(workspace, "rev-list", "--count", "HEAD") == "2"
+        assert git(workspace, "rev-list", "--count", "HEAD") == "1"
         commit_result = client.post(
             f"/api/v1/dev/git/proposals/{commit_proposal.json()['proposal_id']}/execute"
         )
         assert commit_result.status_code == 200
         assert commit_result.json()["clean"] is True
-        assert git(workspace, "rev-list", "--count", "HEAD") == "3"
+        assert git(workspace, "rev-list", "--count", "HEAD") == "2"
 
         revert_proposal = client.post(
             "/api/v1/dev/workspaces/workspace-1/git/proposals",
@@ -90,7 +90,7 @@ def test_git_branch_commit_and_revert_require_review_and_approval(tmp_path: Path
             f"/api/v1/dev/git/proposals/{revert_proposal.json()['proposal_id']}/execute"
         )
         assert revert_result.status_code == 200
-        assert git(workspace, "rev-list", "--count", "HEAD") == "4"
+        assert git(workspace, "rev-list", "--count", "HEAD") == "3"
         assert (workspace / "README.md").read_text(encoding="utf-8") == "versão inicial\n"
 
 
