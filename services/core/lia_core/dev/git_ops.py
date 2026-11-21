@@ -396,6 +396,8 @@ class GitOperationManager:
                 root, "update-ref",
                 f"refs/heads/{proposal.branch}", commit_sha, head,
             )
+            # Synchronize only committed paths; unrelated staged changes remain untouched.
+            self._run(root, "reset", "-q", "HEAD", "--", *paths)
         elif proposal.action == "create_branch":
             result = self._run(root, "switch", "-c", proposal.parameters["branch"])
         elif proposal.action == "checkout":
