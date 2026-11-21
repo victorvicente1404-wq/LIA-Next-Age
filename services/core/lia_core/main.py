@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 from lia_core.config import Settings
 from lia_core.dev.workspaces import (
     SensitiveWorkspaceFile,
-    UnsupportedTextFile,
     UnsafeWorkspacePath,
+    UnsupportedTextFile,
     WorkspaceFileTooLarge,
     WorkspaceItemNotFound,
     WorkspaceNotFound,
