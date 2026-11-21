@@ -20,7 +20,10 @@ class CalculatorTool:
         ast.Mod: operator.mod,
         ast.Pow: operator.pow,
     }
-    _unary: ClassVar[dict[type[ast.unaryop], Any]] = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+    _unary: ClassVar[dict[type[ast.unaryop], Any]] = {
+        ast.UAdd: operator.pos,
+        ast.USub: operator.neg,
+    }
 
     @property
     def spec(self) -> ToolSpec:
