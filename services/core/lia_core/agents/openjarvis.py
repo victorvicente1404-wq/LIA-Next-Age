@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from lia_core.agents.registry import ToolRegistry
 from lia_core.agents.tools import build_default_registry
 from lia_core.memory.store import MemoryStore
 
