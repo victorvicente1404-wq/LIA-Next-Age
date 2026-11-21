@@ -79,7 +79,7 @@
 
 **Decisão:** o loop de decisão, planejamento curto, despacho de ferramentas e limites de execução pertencem ao módulo `LiaOrchestrator`. Os backends de inferência oferecem somente a operação `complete`; não definem a política nem a identidade do agente.
 
-**Implementação inicial:**
+**Implementação inicial:**\n- Para tarefas multi-etapas, o modelo pode propor um objetivo e até seis etapas curtas; o plano é exibido na interface e não concede permissões.\n- A execução continua restrita às ferramentas allowlisted, com limite de quatro decisões e uma síntese final.\n
 - O modelo local escolhe entre uma resposta final estruturada ou uma chamada de ferramenta JSON.
 - Cada iteração aceita no máximo uma ferramenta; o loop tem limite rígido de quatro etapas.
 - Todas as chamadas passam pelo registry e pela política fail-closed da Lia.
