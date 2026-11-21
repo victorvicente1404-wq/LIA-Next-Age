@@ -48,7 +48,7 @@ For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python
 ## API
 
 - `GET /health`: service and configured inference status.
-- `POST /api/v1/chat`: local chat completion; response includes the engine name and `external_traffic: false`.
+- `POST /api/v1/chat`: local chat completion; response includes engine name, `external_traffic: false`, and the number of memories used.
 - `POST /api/v1/memories`: save a fact, preference, knowledge item, or note.
 - `GET /api/v1/memories?q=...&kind=...`: search/list saved memories.
 - `DELETE /api/v1/memories/{id}`: delete one memory.
@@ -56,9 +56,17 @@ For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python
 - `GET /api/v1/dev/workspaces/{id}/files?path=...`: list a directory.
 - `GET /api/v1/dev/workspaces/{id}/file?path=...`: read a UTF-8 text file up to 256 KiB.
 
-Lia Dev is read-only at this stage. It blocks path traversal, skips symlinks in directory listings, excludes common generated directories and secret files, and rejects oversized or non-UTF-8 files. It cannot write, install packages, or execute terminal commands yet.
+## Memory behavior
 
-Memory is stored separately from the model in SQLite. OpenJarvis's SQLite/FTS5 backend is being evaluated separately because the pinned OpenJarvis checkout requires its Rust extension for that backend; the Lia-owned store remains the reliable minimal Android path for explicit personal memories.
+Memories are stored separately from the model in SQLite. FTS5 is used for local full-text retrieval when available; substring search is the fallback. Explicitly saved preferences are included in the chat context, along with up to five matching memories. The chat API reports `memories_used`. Requests can set `use_memory=false` to disable retrieval for a turn.
+
+The application does not silently extract new memories from conversation. Users add and delete entries through the Memory tab. Retrieved entries are labeled as saved context, not executable instructions.
+
+OpenJarvis's SQLite/FTS5 backend is being evaluated separately because the pinned OpenJarvis checkout requires its Rust extension for that backend; the Lia-owned store remains the reliable minimal Android path for explicit personal memories.
+
+## Lia Dev
+
+Lia Dev is read-only at this stage. It blocks path traversal, skips symlinks in directory listings, excludes common generated directories and secret files, and rejects oversized or non-UTF-8 files. It cannot write, install packages, or execute terminal commands yet.
 
 ## Tests
 
