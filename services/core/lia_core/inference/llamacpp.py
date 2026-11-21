@@ -48,3 +48,13 @@ class LocalInferenceClient:
         if not isinstance(content, str) or not content.strip():
             raise LocalModelError("Local inference server returned an empty response")
         return content.strip()
+
+    async def complete_with_agent(self, messages, temperature, max_tokens, memory):
+        from lia_core.agents.orchestrator import LiaOrchestrator
+
+        try:
+            return await LiaOrchestrator(self.complete, memory).run(
+                messages, temperature=temperature, max_tokens=max_tokens
+            )
+        except Exception as exc:
+            raise LocalModelError("Lia local orchestration failed") from exc
