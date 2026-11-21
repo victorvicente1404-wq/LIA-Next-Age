@@ -87,6 +87,7 @@ export default function App() {
         setHistoryLoading(false);
         return;
       }
+      setHistoryLoading(true);
       try {
         const response = await authenticatedFetch("/api/v1/conversations?limit=30");
         if (!response.ok) throw new Error("Não foi possível carregar o histórico.");

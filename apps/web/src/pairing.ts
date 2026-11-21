@@ -193,6 +193,8 @@ export async function authenticatedFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {
+  const hostname = window.location.hostname;
+  if (["localhost", "127.0.0.1", "::1"].includes(hostname)) return fetch(input, init);
   const deviceId = getActiveDeviceId();
   if (!deviceId) return fetch(input, init);
 
