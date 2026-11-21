@@ -81,7 +81,7 @@ def build_pairing_app(tmp_path: Path):
         data_dir=tmp_path,
         runtime_backend="llama.cpp",
         pairing_enabled=True,
-        allowed_origins=("https://lia.test",),
+        allowed_origins=("https://lia.test", "http://localhost:5173"),
     )
     return create_app(settings=settings, inference=FakeModel())
 
@@ -137,7 +137,10 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
         json={"messages": [{"role": "user", "content": "Oi"}]},
     ).status_code == 401
 
-    pending = local.get("/api/v1/pairing/requests")
+    pending = local.get(
+        "/api/v1/pairing/requests",
+        headers={"Origin": "http://localhost:5173"},
+    )
     assert pending.status_code == 200
     local.post(
         "/api/v1/memories",
@@ -271,6 +274,12 @@ def test_remote_api_stays_closed_when_pairing_is_disabled(tmp_path: Path):
     )
     assert local_origin.status_code == 200
     assert hostile_origin.status_code == 403
+    local_pairing = local.get(
+        "/api/v1/pairing/requests",
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert local_pairing.status_code == 200
+    assert local_pairing.json() == []
 
 
 def test_untrusted_browser_origin_cannot_use_local_admin_routes(tmp_path: Path):
