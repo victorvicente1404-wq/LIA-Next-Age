@@ -320,7 +320,7 @@ def create_app(
             return await call_next(request)
         if is_loopback(request):
             local_origin = request.headers.get("origin")
-            if local_origin and local_origin.rstrip("/") not in config.allowed_origins:
+            if config.pairing_enabled and local_origin and local_origin.rstrip("/") not in config.allowed_origins:
                 return Response(
                     content='{"detail":"Origem local não autorizada."}',
                     status_code=403,
