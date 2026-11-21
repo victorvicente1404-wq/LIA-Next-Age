@@ -66,7 +66,9 @@ OpenJarvis's SQLite/FTS5 backend is being evaluated separately because the pinne
 
 ## Lia Dev
 
-Lia Dev is read-only at this stage. It blocks path traversal, skips symlinks in directory listings, excludes common generated directories and secret files, and rejects oversized or non-UTF-8 files. It cannot write, install packages, or execute terminal commands yet.
+Lia Dev can inspect only explicitly allowlisted workspaces. It blocks path traversal, skips symlinks in directory listings, excludes common generated directories and secret files, and rejects oversized or non-UTF-8 files. File edits are proposed as diffs and require a separate apply request; each write is atomic, checks the original file hash, and creates a persistent rollback backup.
+
+Development tasks are selected from a fixed catalog (Git status/diff, pytest, Ruff, and npm build). A proposal displays the exact command and working directory and expires after five minutes. Execution requires a separate approval request, runs without a shell, uses a restricted environment, has a 120-second timeout, captures only a bounded amount of output while continuing to drain the process pipe, and kills the process group on completion or timeout. This is not an OS/container sandbox: approved tests and builds execute project code and may modify the workspace. Do not expose the API beyond loopback until authentication and device pairing exist.
 
 ## Tests
 

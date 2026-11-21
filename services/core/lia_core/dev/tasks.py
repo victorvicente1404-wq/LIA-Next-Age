@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -14,6 +16,7 @@ from typing import ClassVar
 from lia_core.dev.workspaces import WorkspaceRegistry
 
 MAX_OUTPUT_CHARS = 12_000
+MAX_OUTPUT_BYTES = MAX_OUTPUT_CHARS * 4
 COMMAND_TIMEOUT_SECONDS = 120
 PROPOSAL_TTL_MINUTES = 5
 
@@ -140,6 +143,15 @@ class TaskRunner:
         self._purge_expired()
         return self._proposals.pop(proposal_id, None) is not None
 
+    @staticmethod
+    def _read_limited_output(stream, captured: bytearray, truncated: list[bool]) -> None:
+        while chunk := stream.read(4096):
+            remaining = MAX_OUTPUT_BYTES - len(captured)
+            if remaining > 0:
+                captured.extend(chunk[:remaining])
+            if len(chunk) > remaining:
+                truncated[0] = True
+
     def execute(self, proposal_id: str) -> dict[str, object]:
         self._purge_expired()
         proposal = self._proposals.pop(proposal_id, None)
@@ -154,48 +166,71 @@ class TaskRunner:
             "CI": "1",
             "PYTHONDONTWRITEBYTECODE": "1",
             "PYTHONUNBUFFERED": "1",
+            "GIT_TERMINAL_PROMPT": "0",
         }
         started = time.monotonic()
+        captured = bytearray()
+        truncated = [False]
         timed_out = False
+        popen_options = {"start_new_session": True} if os.name == "posix" else {}
+        process = subprocess.Popen(
+            proposal.command,
+            cwd=proposal.cwd,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=False,
+            bufsize=0,
+            **popen_options,
+        )
+        assert process.stdout is not None
+        reader = threading.Thread(
+            target=self._read_limited_output,
+            args=(process.stdout, captured, truncated),
+            daemon=True,
+        )
+        reader.start()
         try:
-            completed = subprocess.run(
-                proposal.command,
-                cwd=proposal.cwd,
-                env=environment,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=COMMAND_TIMEOUT_SECONDS,
-                check=False,
-                shell=False,
-            )
-            output = completed.stdout
-            return_code = completed.returncode
-        except subprocess.TimeoutExpired as exc:
+            process.wait(timeout=COMMAND_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
             timed_out = True
-            captured = exc.stdout or b""
-            output = (
-                captured.decode("utf-8", errors="replace")
-                if isinstance(captured, bytes)
-                else captured
-            )
-            return_code = None
+            if os.name == "posix":
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            else:
+                process.kill()
+            process.wait()
+        if os.name == "posix":
+            # Approved task commands must not leave background descendants behind.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        reader.join(timeout=5)
+        if reader.is_alive():
+            truncated[0] = True
+            process.stdout.close()
+            reader.join(timeout=1)
+        else:
+            process.stdout.close()
+
         duration_ms = round((time.monotonic() - started) * 1000)
-        truncated = len(output) > MAX_OUTPUT_CHARS
-        if truncated:
-            output = output[:MAX_OUTPUT_CHARS] + "\n… saída truncada pelo limite da Lia."
+        output = bytes(captured).decode("utf-8", errors="replace")
+        output_truncated = truncated[0]
+        if output_truncated:
+            output += "\n… saída limitada pela Lia."
         return {
             "task": proposal.task,
             "label": self.TASK_LABELS[proposal.task],
             "command": " ".join(proposal.command),
             "cwd": str(proposal.cwd),
-            "return_code": return_code,
-            "success": return_code == 0 and not timed_out,
+            "return_code": process.returncode,
+            "success": process.returncode == 0 and not timed_out,
             "timed_out": timed_out,
             "duration_ms": duration_ms,
             "output": output,
-            "output_truncated": truncated,
+            "output_truncated": output_truncated,
         }
