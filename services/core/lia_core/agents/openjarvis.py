@@ -16,6 +16,9 @@ def run_openjarvis_agent(
     max_tokens: int = 512,
 ) -> dict[str, Any]:
     """Run OpenJarvis orchestration with Lia-owned tools and fail-closed policy."""
+    if not messages or messages[-1].get("role") != "user":
+        raise ValueError("Agent requires the latest message to be from the user.")
+
     from openjarvis.agents._stubs import AgentContext
     from openjarvis.agents.orchestrator import OrchestratorAgent
     from openjarvis.core.types import Conversation, Message, Role, ToolResult as OpenJarvisToolResult
