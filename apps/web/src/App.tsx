@@ -411,14 +411,26 @@ export default function App() {
                       <span className="message-author">{message.role === "user" ? "Você" : "Lia"}</span>
                       <p>{message.content}</p>
                       {message.role === "assistant" && (
-                        <small className="message-meta">
+                        <>
+                          {voiceStatus?.synthesis_configured && (
+                            <button
+                              type="button"
+                              className="message-speak"
+                              onClick={() => void speakMessage(message.content, index)}
+                              disabled={playingMessage !== null}
+                            >
+                              {playingMessage === index ? "Reproduzindo…" : "Ouvir"}
+                            </button>
+                          )}
+                          <small className="message-meta">
                           {message.engine ?? "local"} · {message.externalTraffic ? "tráfego externo" : "somente local"}
                           {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}
                           {message.agent && ` · ${message.agent}`}
                           {message.specialist && message.specialist !== "general" && ` · perfil ${message.specialist}`}
                           {(message.toolCalls ?? 0) > 0 && ` · ${message.toolCalls} ferramentas`}
                           {message.plan && message.plan.length > 0 && ` · plano: ${message.plan.join(" → ")}`}
-                        </small>
+                          </small>
+                        </>
                       )}
                     </article>
                   ))}
