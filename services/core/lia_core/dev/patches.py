@@ -6,7 +6,7 @@ import os
 import tempfile
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from lia_core.dev.workspaces import (
@@ -57,7 +57,19 @@ class PatchManager:
         self._proposals: dict[str, PatchProposal] = {}
         self._applied: dict[str, AppliedPatch] = {}
 
+    def _purge_expired(self) -> None:
+        now = datetime.now(timezone.utc)
+        for proposal_id, proposal in list(self._proposals.items()):
+            created = datetime.fromisoformat(proposal.created_at)
+            if now - created > timedelta(minutes=30):
+                self._proposals.pop(proposal_id, None)
+
+    def cancel(self, proposal_id: str) -> bool:
+        self._purge_expired()
+        return self._proposals.pop(proposal_id, None) is not None
+
     def propose(self, workspace_id: str, relative_path: str, content: str) -> dict[str, object]:
+        self._purge_expired()
         if len(content.encode("utf-8")) > MAX_FILE_BYTES:
             raise WorkspaceFileTooLarge(relative_path)
         current = self._workspaces.read_file(workspace_id, relative_path)
@@ -80,6 +92,12 @@ class PatchManager:
             diff=diff,
             created_at=datetime.now(timezone.utc).isoformat(),
         )
+        if len(self._proposals) >= 50:
+            oldest_id = min(
+                self._proposals,
+                key=lambda item: self._proposals[item].created_at,
+            )
+            self._proposals.pop(oldest_id, None)
         self._proposals[proposal_id] = proposal
         return {
             "proposal_id": proposal.id,
@@ -92,6 +110,7 @@ class PatchManager:
         }
 
     def apply(self, proposal_id: str) -> dict[str, str]:
+        self._purge_expired()
         proposal = self._proposals.get(proposal_id)
         if proposal is None:
             raise PatchNotFound(proposal_id)
