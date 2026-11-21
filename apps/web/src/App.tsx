@@ -209,10 +209,10 @@ export default function App() {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const preferredMime = "audio/webm;codecs=opus";
+      const recorder = MediaRecorder.isTypeSupported(preferredMime)
+        ? new MediaRecorder(stream, { mimeType: preferredMime })
+        : new MediaRecorder(stream);
       const chunks: BlobPart[] = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunks.push(event.data);
@@ -244,6 +244,7 @@ export default function App() {
       };
       recorder.onerror = () => {
         stream.getTracks().forEach((track) => track.stop());
+        recorderRef.current = null;
         setRecording(false);
         setError("A gravação foi interrompida pelo navegador.");
       };
@@ -423,12 +424,12 @@ export default function App() {
                             </button>
                           )}
                           <small className="message-meta">
-                          {message.engine ?? "local"} · {message.externalTraffic ? "tráfego externo" : "somente local"}
-                          {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}
-                          {message.agent && ` · ${message.agent}`}
-                          {message.specialist && message.specialist !== "general" && ` · perfil ${message.specialist}`}
-                          {(message.toolCalls ?? 0) > 0 && ` · ${message.toolCalls} ferramentas`}
-                          {message.plan && message.plan.length > 0 && ` · plano: ${message.plan.join(" → ")}`}
+                            {message.engine ?? "local"} · {message.externalTraffic ? "tráfego externo" : "somente local"}
+                            {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}
+                            {message.agent && ` · ${message.agent}`}
+                            {message.specialist && message.specialist !== "general" && ` · perfil ${message.specialist}`}
+                            {(message.toolCalls ?? 0) > 0 && ` · ${message.toolCalls} ferramentas`}
+                            {message.plan && message.plan.length > 0 && ` · plano: ${message.plan.join(" → ")}`}
                           </small>
                         </>
                       )}
