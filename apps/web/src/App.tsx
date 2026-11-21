@@ -8,6 +8,8 @@ type Message = {
   memoriesUsed?: number;
   engine?: string;
   externalTraffic?: boolean;
+  agent?: string;
+  toolCalls?: number;
 };
 
 type Conversation = {
@@ -125,6 +127,8 @@ export default function App() {
         engine?: string;
         external_traffic?: boolean;
         memories_used?: number;
+        agent?: string;
+        tool_calls?: number;
         detail?: string | { message?: string };
       };
       if (!response.ok) {
@@ -141,6 +145,8 @@ export default function App() {
             memoriesUsed: data.memories_used ?? 0,
             engine: data.engine ?? "local",
             externalTraffic: data.external_traffic ?? false,
+            agent: data.agent ?? "simple",
+            toolCalls: data.tool_calls ?? 0,
           },
         ]);
         const history = await fetch("/api/v1/conversations?limit=30");
@@ -275,7 +281,7 @@ export default function App() {
                       {message.role === "assistant" && (
                         <small className="message-meta">
                           {message.engine ?? "local"} · {message.externalTraffic ? "tráfego externo" : "somente local"}
-                          {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}
+                          {(message.memoriesUsed ?? 0) > 0 && ` · ${message.memoriesUsed} memórias usadas`}{message.agent && ` · ${message.agent}`}{(message.toolCalls ?? 0) > 0 && ` · ${message.toolCalls} ferramentas`}
                         </small>
                       )}
                     </article>
