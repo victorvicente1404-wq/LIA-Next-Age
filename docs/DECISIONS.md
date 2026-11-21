@@ -112,3 +112,21 @@
 - Novos perfis só devem ganhar ferramentas depois que os contratos, validações e aprovações correspondentes existirem.
 
 **Limitações:** seleção de perfil é uma decisão do modelo e pode não ocorrer em modelos locais menos capazes. Os perfis iniciais não executam ações externas nem acessam recursos de Lia Dev.
+
+## ADR-008 — API local e pareamento seguro entre dispositivos
+
+**Decisão:** o núcleo da Lia permanece acessível somente por loopback até existir autenticação e pareamento de dispositivos. Estar na mesma rede Wi-Fi não é prova de identidade nem autorização.
+
+**Limites obrigatórios antes de habilitar acesso pela rede:**
+- Transporte HTTPS com certificado validado; nunca enviar credenciais ou áudio por HTTP em uma LAN.
+- Pareamento iniciado e aprovado pelo usuário no dispositivo principal, usando código/QR de uso único, aleatório, de curta duração e limitado a uma tentativa bem definida.
+- Tokens de dispositivo com escopo mínimo, expiração, rotação e revogação individual. Segredos não aparecem em URLs, logs ou mensagens de erro; armazenar somente hashes de tokens de longa duração.
+- Proteção contra replay por nonce/expiração, validação estrita de origem e proteção CSRF nas rotas mutáveis.
+- Limites de tentativas, tamanho de payload e concorrência, além de registro local de pareamentos, revogações e ações sensíveis.
+- Nenhuma rota de pareamento pode conceder acesso automaticamente a workspaces, Lia Dev, arquivos ou operações de escrita. Cada capacidade exige escopo explícito e aprovação correspondente.
+- O modo local sem pareamento continua funcional e não depende de serviço externo, conta hospedada ou API de inferência.
+
+**Consequência:** o uso do microfone pelo navegador no próprio dispositivo pode ser desenvolvido localmente, mas o acesso celular-PC pela rede fica bloqueado até que o fluxo de identidade, transporte, autorização e revogação seja implementado e testado. Não abrir o servidor em `0.0.0.0` como atalho.
+
+**Ameaças consideradas:** dispositivos desconhecidos na LAN, páginas web maliciosas tentando acessar serviços locais, roubo/reuso de tokens, replay de solicitações e exposição acidental de dados pessoais ou workspaces.
+
