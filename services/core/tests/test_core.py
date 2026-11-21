@@ -3,7 +3,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from lia_core.config import Settings
-from lia_core.inference.llamacpp import LocalModelError
+from lia_core.inference.factory import create_inference_client
+from lia_core.inference.llamacpp import LocalInferenceClient, LocalModelError
 from lia_core.main import create_app
 
 
@@ -26,10 +27,21 @@ def build_client(
         llm_model="test-model",
         data_dir=tmp_path,
         dev_workspaces=dev_workspaces,
+        runtime_backend="llama.cpp",
     )
     return TestClient(
         create_app(settings=settings, inference=inference, memory_path=tmp_path / "memory.sqlite3")
     )
+
+
+def test_runtime_can_select_direct_llamacpp(tmp_path: Path):
+    settings = Settings(
+        llm_base_url="http://127.0.0.1:8080/v1",
+        llm_model="test-model",
+        data_dir=tmp_path,
+        runtime_backend="llama.cpp",
+    )
+    assert isinstance(create_inference_client(settings), LocalInferenceClient)
 
 
 def test_health_reports_local_runtime(tmp_path: Path):
