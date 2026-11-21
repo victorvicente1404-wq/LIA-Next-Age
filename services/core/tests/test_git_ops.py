@@ -212,6 +212,8 @@ def test_git_commit_uses_approved_snapshot_if_worktree_changes_after_blob_write(
     make_repo(workspace)
     app_file = workspace / "README.md"
     app_file.write_text("conteúdo aprovado\n", encoding="utf-8")
+    (workspace / "staged.txt").write_text("manter no índice\n", encoding="utf-8")
+    git(workspace, "add", "staged.txt")
     git(workspace, "switch", "-c", "feature/snapshot-race")
     with client_for(tmp_path, workspace) as client:
         proposal = client.post(
@@ -242,6 +244,7 @@ def test_git_commit_uses_approved_snapshot_if_worktree_changes_after_blob_write(
     assert changed is True
     assert git(workspace, "show", "HEAD:README.md") == "conteúdo aprovado"
     assert app_file.read_text(encoding="utf-8") == "conteúdo não aprovado\n"
+    assert git(workspace, "diff", "--cached", "--name-only") == "staged.txt"
     assert "README.md" in git(workspace, "status", "--short")
 
 
