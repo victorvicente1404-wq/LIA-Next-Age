@@ -14,7 +14,12 @@ type PatchProposal = {
   diff: string;
   status: string;
 };
-type AppliedPatch = { operation_id: string; path: string; status: string };
+type AppliedPatch = {
+  operation_id: string;
+  workspace_id?: string;
+  path: string;
+  status: string;
+};
 
 async function requestJson<T>(
   url: string,
@@ -39,6 +44,7 @@ export default function DevPanel() {
   const [editContent, setEditContent] = useState("");
   const [proposal, setProposal] = useState<PatchProposal | null>(null);
   const [applied, setApplied] = useState<AppliedPatch | null>(null);
+  const [rollbacks, setRollbacks] = useState<AppliedPatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +67,26 @@ export default function DevPanel() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setRollbacks([]);
+      return;
+    }
+    let active = true;
+    requestJson<AppliedPatch[]>(
+      `/api/v1/dev/rollbacks?workspace_id=${encodeURIComponent(workspaceId)}`,
+    )
+      .then((items) => {
+        if (active) setRollbacks(items);
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Falha ao carregar rollbacks.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspaceId]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -164,6 +190,10 @@ export default function DevPanel() {
         { method: "POST" },
       );
       setApplied(result);
+      setRollbacks((current) => [
+        { ...result, workspace_id: workspaceId },
+        ...current.filter((item) => item.operation_id !== result.operation_id),
+      ]);
       setProposal(null);
       if (preview) {
         const updated = await requestJson<FilePreview>(
@@ -179,16 +209,17 @@ export default function DevPanel() {
     }
   }
 
-  async function rollbackPatch() {
-    if (!applied || saving) return;
+  async function rollbackPatch(operationId: string) {
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
       await requestJson(
-        `/api/v1/dev/patches/${applied.operation_id}/rollback`,
+        `/api/v1/dev/patches/${operationId}/rollback`,
         { method: "POST" },
       );
-      setApplied(null);
+      setRollbacks((current) => current.filter((item) => item.operation_id !== operationId));
+      setApplied((current) => current?.operation_id === operationId ? null : current);
       if (preview) {
         const restored = await requestJson<FilePreview>(
           `/api/v1/dev/workspaces/${workspaceId}/file?path=${encodeURIComponent(preview.path)}`,
@@ -321,9 +352,7 @@ export default function DevPanel() {
                 {applied && (
                   <div className="patch-applied">
                     <span>Alteração aplicada em {applied.path}.</span>
-                    <button type="button" onClick={() => void rollbackPatch()} disabled={saving}>
-                      {saving ? "Desfazendo…" : "Desfazer alteração"}
-                    </button>
+                    <span>O backup foi registrado para rollback.</span>
                   </div>
                 )}
               </>
@@ -333,6 +362,28 @@ export default function DevPanel() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+
+      {rollbacks.length > 0 && (
+        <div className="rollback-list">
+          <div className="rollback-list-heading">
+            <strong>Alterações aplicadas com rollback disponível</strong>
+            <span>{rollbacks.length}</span>
+          </div>
+          {rollbacks.map((item) => (
+            <div className="rollback-item" key={item.operation_id}>
+              <code>{item.path}</code>
+              <button
+                type="button"
+                onClick={() => void rollbackPatch(item.operation_id)}
+                disabled={saving}
+              >
+                {saving ? "Aguarde…" : "Desfazer"}
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
