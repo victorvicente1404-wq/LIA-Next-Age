@@ -58,7 +58,7 @@ For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python
 
 ## Memory behavior
 
-Memories are stored separately from the model in SQLite. FTS5 is used for local full-text retrieval when available; substring search is the fallback. Explicitly saved preferences are included in the chat context, along with up to five matching memories. The chat API reports `memories_used`. Requests can set `use_memory=false` to disable retrieval for a turn.
+Memories are stored separately from the model in SQLite. FTS5 is used for local full-text retrieval when available; substring search is the fallback. Explicitly saved preferences are included in the chat context, along with up to five memories total (saved preferences are prioritized, then query matches). The chat API reports `memories_used`. Requests can set `use_memory=false` to disable retrieval for a turn.
 
 The application does not silently extract new memories from conversation. Users add and delete entries through the Memory tab. Retrieved entries are labeled as saved context, not executable instructions.
 
