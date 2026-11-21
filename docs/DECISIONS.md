@@ -66,7 +66,7 @@
 
 **Primeira allowlist:** `calculator` (aritmética limitada, sem `eval`) e `memory_search` (consulta somente leitura à memória explícita).
 
-**Governança:** cada chamada é validada pela política antes do despacho usando o hook `before_tool_call` do `OrchestratorAgent`. Ferramentas desconhecidas, ferramentas fora da allowlist e ferramentas que não sejam somente de leitura são negadas. O agente recebe o histórico de conversa já preparado pela API.
+**Governança:** cada chamada é despachada pelo `LiaOrchestrator` através do registry e da política fail-closed da Lia. Ferramentas desconhecidas, fora da allowlist ou não somente de leitura são negadas.
 
 **Consequências:** 
 - O agente não recebe shell, escrita de arquivos, Git mutável, web, mensageria, calendário ou automação doméstica.
@@ -79,9 +79,12 @@
 
 **Decisão:** o loop de decisão, planejamento curto, despacho de ferramentas e limites de execução pertencem ao módulo `LiaOrchestrator`. Os backends de inferência oferecem somente a operação `complete`; não definem a política nem a identidade do agente.
 
-**Implementação inicial:**\n- Para tarefas multi-etapas, o modelo pode propor um objetivo e até seis etapas curtas; o plano é exibido na interface e não concede permissões.\n- A execução continua restrita às ferramentas allowlisted, com limite de quatro decisões e uma síntese final.\n
-- O modelo local escolhe entre uma resposta final estruturada ou uma chamada de ferramenta JSON.
-- Cada iteração aceita no máximo uma ferramenta; o loop tem limite rígido de quatro etapas.
+**Implementação inicial:**
+- Para tarefas multi-etapas, o modelo pode propor um objetivo e até seis etapas curtas; o plano é exibido na interface e não concede permissões.
+- A execução continua restrita às ferramentas allowlisted, com limite de quatro decisões e uma síntese final.
+
+- O modelo local pode propor um plano estruturado de até seis etapas, uma resposta final ou uma chamada de ferramenta JSON.
+- Cada iteração aceita no máximo uma ferramenta; o loop tem até quatro decisões e uma síntese final.
 - Todas as chamadas passam pelo registry e pela política fail-closed da Lia.
 - Ferramentas desconhecidas ou não autorizadas retornam falha sem despacho.
 - A saída de ferramenta é marcada como dado não confiável no contexto seguinte.
