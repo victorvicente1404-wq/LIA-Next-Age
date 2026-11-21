@@ -13,7 +13,7 @@ from typing import Any
 PAIRING_REQUEST_TTL_SECONDS = 300
 DEFAULT_DEVICE_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 MAX_PAIRING_ATTEMPTS = 5
-ALLOWED_DEVICE_SCOPES = frozenset({"chat", "voice"})
+ALLOWED_DEVICE_SCOPES = frozenset({"chat", "voice", "memory:read"})
 
 
 class PairingError(Exception):
