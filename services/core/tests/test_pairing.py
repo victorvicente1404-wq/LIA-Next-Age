@@ -143,7 +143,8 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
         json={"pairing_code": created["pairing_code"]},
     )
     assert approved.status_code == 200
-    token = approved.json()["access_token"]
+    assert "access_token" not in approved.json()
+    token = created["pairing_code"]
 
     path = "/api/v1/chat"
     headers = signed_headers(token, "POST", path, "nonce-123456789012")
