@@ -22,7 +22,7 @@ Assistente pessoal local-first, modular e extensível.
 5. **PC complementar:** reutiliza os contratos e a lógica central, com launcher, interface e runtime locais próprios.
 6. **Dados e conectores:** SQLite e armazenamento local; Google, WhatsApp e casa inteligente como integrações independentes e autorizadas.
 
-A arquitetura e a sequência estão detalhadas em [Android-first](docs/ANDROID_FIRST.md).
+A arquitetura e a sequência estão detalhadas em [Android-first](docs/ANDROID_FIRST.md). Os limites entre Android, núcleo e runtime estão em [contratos de plataforma](docs/PLATFORM_CONTRACTS.md).
 
 ## Política de provedores
 
@@ -55,6 +55,7 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] Orquestrador próprio da Lia, com loop limitado e ferramentas locais allowlisted.
 - [x] Perfis especialistas subordinados ao mesmo orquestrador.
 - [x] Decisão de produto Android-first documentada.
+- [x] Contratos neutros de plataforma definidos para orientar o cliente nativo.
 - [ ] Revisão final de segurança e concorrência da Lia Dev.
 - [ ] Cliente Android nativo, armazenamento de credenciais via Android Keystore e ponte local com o núcleo.
 - [ ] Runtime de inferência e voz validados em dispositivo Android real.
