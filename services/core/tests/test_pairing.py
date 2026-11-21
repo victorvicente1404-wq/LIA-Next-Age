@@ -250,6 +250,16 @@ def test_remote_api_stays_closed_when_pairing_is_disabled(tmp_path: Path):
     assert disabled_pairing.status_code == 403
     assert local.get("/health").status_code == 200
     assert local.get("/api/v1/conversations").status_code == 200
+    local_origin = local.get(
+        "/api/v1/conversations",
+        headers={"Origin": "http://localhost:5173"},
+    )
+    hostile_origin = local.get(
+        "/api/v1/conversations",
+        headers={"Origin": "https://evil.test"},
+    )
+    assert local_origin.status_code == 200
+    assert hostile_origin.status_code == 403
 
 
 def test_untrusted_browser_origin_cannot_use_local_admin_routes(tmp_path: Path):
