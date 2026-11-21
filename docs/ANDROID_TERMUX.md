@@ -1,6 +1,8 @@
-# Rodar a Lia no Android/Termux
+# Protótipo atual da Lia no Android com Termux (opcional)
 
-Este guia prepara a fundação atual no Android. A inferência é local: o serviço Python encaminha a conversa somente para o servidor llama.cpp configurado.
+**Este não é ainda o aplicativo Android final.** O repositório atualmente contém um núcleo Python e uma interface web responsiva; o módulo Android nativo ainda será construído. O Termux pode ser usado como ponte de desenvolvimento/runtime sem instalar Ubuntu, Debian, proot ou outra distribuição Linux. O objetivo final é que você instale e abra a Lia como um aplicativo Android, sem precisar administrar sessões de terminal.
+
+Este guia documenta apenas como testar a fundação existente. A inferência é local: o serviço Python encaminha a conversa somente para o servidor llama.cpp configurado. Consulte [a arquitetura Android-first](ANDROID_FIRST.md) para o plano oficial.
 
 ## 1. Conferir os requisitos
 
@@ -88,8 +90,10 @@ A interface consulta o núcleo pela proxy local do Vite. O serviço Python fica 
 
 ## Segurança e limites desta etapa
 
-- Os servidores são vinculados ao loopback. Não troque para `0.0.0.0` nem exponha portas na rede: autenticação e pareamento de dispositivos ainda não foram implementados.
-- A memória já persiste, mas a extração automática e a injeção contextual ainda não foram implementadas.
-- Lia Dev é somente leitura por enquanto; ainda não altera arquivos nem executa comandos.
-- Voz, visão e automações domésticas ainda são etapas futuras.
-- Esta fundação ainda precisa ser validada no ambiente real do aparelho.
+- Mantenha os serviços vinculados ao loopback. Não troque para `0.0.0.0` nem exponha portas na rede como atalho.
+- A API de pareamento já existe no branch de desenvolvimento, mas permanece desativada por padrão. HTTPS, allowlist de origens, aprovação local, escopos, HMAC, nonce anti-replay e revogação foram cobertos por testes automatizados; isso não equivale a validação de TLS, proxy, firewall ou cliente real. Não habilite acesso remoto nesta etapa.
+- A memória explícita e a recuperação contextual já existem; não confunda isso com extração automática irrestrita de lembranças.
+- Lia Dev já possui leitura controlada, propostas de patch, tarefas predefinidas e operações Git tipadas com aprovação. Use somente workspaces explicitamente autorizados e revise cada proposta.
+- A camada de voz via navegador, whisper.cpp e Piper tem testes com mocks/fakes, mas os binários, modelos, formatos reais, latência e qualidade ainda não foram validados no aparelho.
+- O fluxo web e o núcleo ainda precisam ser testados no ambiente real do Galaxy. A aplicação Android nativa, Android Keystore e integração com APIs do sistema ainda não existem.
+- Termux é opcional para o protótipo; não instale uma distribuição Linux em proot.
