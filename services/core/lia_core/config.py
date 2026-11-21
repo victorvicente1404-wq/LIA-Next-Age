@@ -13,7 +13,7 @@ class Settings:
     request_timeout_seconds: float = 120.0
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         return cls(
             llm_base_url=os.getenv("LIA_LLM_BASE_URL", "http://127.0.0.1:8080/v1").rstrip("/"),
             llm_model=os.getenv("LIA_LLM_MODEL", "local-model"),
