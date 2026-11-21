@@ -59,4 +59,4 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 
 Consulte [o guia Android/Termux](docs/ANDROID_TERMUX.md), [o guia do núcleo](services/core/README.md) e [as decisões de integração OpenJarvis](docs/DECISIONS.md).
 
-Este repositório é a nova base da Lia. O branch `foundation/bootstrap` é o ambiente de desenvolvimento; a branch `main` permanece intacta até a revisão e validação da fundação.
+Este repositório é a nova base da Lia. O branch `foundation/bootstrap` concentra o desenvolvimento ativo; as alterações desta etapa ainda não foram integradas à branch `main`.
