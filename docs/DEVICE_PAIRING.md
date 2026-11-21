@@ -75,7 +75,7 @@ A chave HMAC são os bytes do digest SHA-256 do `pairing_code` (não o texto hex
 
 ## Limitações desta etapa
 
-- O frontend ainda não oferece a tela de pareamento. O módulo `apps/web/src/pairing.ts` já deriva uma chave HMAC não extraível, persiste a `CryptoKey` no IndexedDB e assina requisições; a integração dessa rotina à interface ainda está pendente.
+- A aba Dispositivos do frontend já lista solicitações e dispositivos, aprova códigos e revoga acessos localmente. A criação da solicitação no cliente remoto e a integração do fluxo de credenciais à experiência de chat ainda estão pendentes. O módulo `apps/web/src/pairing.ts` deriva uma chave HMAC não extraível, persiste a `CryptoKey` no IndexedDB e assina requisições.
 - O aplicativo Android ainda não implementa o cliente de pareamento.
 - Uma chave HMAC não extraível impede exportação direta pelo JavaScript, mas não impede um script malicioso na mesma origem de solicitar assinaturas. A interface final precisa de CSP rígida, dependências controladas e proteção contra XSS.
 - A leitura remota de memória só existe com o escopo opcional `memory:read`. Escrita de memória, arquivos, Git, terminal e Lia Dev não são acessíveis remotamente.
