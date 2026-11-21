@@ -40,7 +40,7 @@ def make_client(tmp_path, inference):
         llm_model="test-model",
         data_dir=tmp_path,
     )
-    return TestClient(create_app(settings=settings, inference=inference))
+    return TestClient(create_app(settings=settings, inference=inference), client=("127.0.0.1", 12345))
 
 
 def test_chat_uses_agent_for_user_turn_and_returns_agent_metadata(tmp_path):
