@@ -147,7 +147,6 @@ class PatchManager:
         supplied = Path(relative_path)
         if supplied.is_absolute() or ".." in supplied.parts:
             raise UnsafeWorkspacePath(relative_path)
-        candidate = workspace.root / supplied
         cursor = workspace.root
         for part in supplied.parts:
             cursor = cursor / part
