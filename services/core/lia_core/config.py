@@ -10,13 +10,21 @@ class Settings:
     llm_base_url: str
     llm_model: str
     data_dir: Path
+    dev_workspaces: tuple[Path, ...] = ()
     request_timeout_seconds: float = 120.0
 
     @classmethod
     def from_env(cls) -> Settings:
+        workspace_values = os.getenv("LIA_DEV_WORKSPACES", "")
+        workspaces = tuple(
+            Path(item).expanduser()
+            for item in workspace_values.split(os.pathsep)
+            if item.strip()
+        )
         return cls(
             llm_base_url=os.getenv("LIA_LLM_BASE_URL", "http://127.0.0.1:8080/v1").rstrip("/"),
             llm_model=os.getenv("LIA_LLM_MODEL", "local-model"),
             data_dir=Path(os.getenv("LIA_DATA_DIR", str(Path.home() / ".lia"))).expanduser(),
+            dev_workspaces=workspaces,
             request_timeout_seconds=float(os.getenv("LIA_LLM_TIMEOUT", "120")),
         )
