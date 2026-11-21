@@ -73,3 +73,19 @@
 - O adaptador direto llama.cpp continua funcionando sem OpenJarvis, sem ferramentas e sem fallback remoto.
 - A resposta da API informa agente, número de chamadas de ferramenta e turnos do agente.
 - A integração é opcional e ainda precisa de validação com o GGUF real e no ambiente Android.
+
+
+## ADR-006 — Orquestrador cognitivo pertence à Lia
+
+**Decisão:** o loop de decisão, planejamento curto, despacho de ferramentas e limites de execução pertencem ao módulo `LiaOrchestrator`. Os backends de inferência oferecem somente a operação `complete`; não definem a política nem a identidade do agente.
+
+**Implementação inicial:**
+- O modelo local escolhe entre uma resposta final estruturada ou uma chamada de ferramenta JSON.
+- Cada iteração aceita no máximo uma ferramenta; o loop tem limite rígido de quatro etapas.
+- Todas as chamadas passam pelo registry e pela política fail-closed da Lia.
+- Ferramentas desconhecidas ou não autorizadas retornam falha sem despacho.
+- A saída de ferramenta é marcada como dado não confiável no contexto seguinte.
+- llama.cpp HTTP e OpenJarvis LlamaCppEngine usam o mesmo orquestrador. OpenJarvis é opcional e substituível.
+- O caminho simples continua disponível com `use_tools=false`; não existe fallback remoto.
+
+**Limitações conhecidas:** allowlist inicial limitada a calculadora e busca de memória; ainda não há plano persistente, agentes especialistas, tarefas interrompíveis, ferramentas de escrita ou conectores. A validação real com GGUF e Android continua pendente.
