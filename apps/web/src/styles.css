@@ -186,3 +186,42 @@ button, textarea, select, input { font: inherit; }
   .git-actions-grid { grid-template-columns: minmax(0, 1fr); }
   .dev-git { padding: 12px; }
 }
+
+
+.voice-button {
+  min-width: 72px;
+  height: 52px;
+  padding: 0 13px;
+  border: 1px solid #66523d;
+  border-radius: 14px;
+  color: #e5c69e;
+  background: #2c261f;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.voice-button:disabled { opacity: .4; cursor: not-allowed; }
+.voice-button.recording {
+  border-color: #a85d58;
+  color: #ffd0c9;
+  background: #492a2c;
+  animation: voice-pulse 1.4s ease-in-out infinite;
+}
+.message-speak {
+  display: block;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid #66523d;
+  border-radius: 8px;
+  color: #e5c69e;
+  background: #2c261f;
+  font-size: 10px;
+  cursor: pointer;
+}
+.message-speak:disabled { opacity: .45; cursor: not-allowed; }
+@keyframes voice-pulse {
+  50% { box-shadow: 0 0 0 4px #a85d5830; }
+}
+@media (max-width: 600px) {
+  .voice-button { min-width: 62px; padding: 0 9px; }
+}
