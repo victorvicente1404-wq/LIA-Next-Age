@@ -87,6 +87,7 @@
 - Cada iteração aceita no máximo uma ferramenta; o loop tem até quatro decisões e uma síntese final.
 - Todas as chamadas passam pelo registry e pela política fail-closed da Lia.
 - Ferramentas desconhecidas ou não autorizadas retornam falha sem despacho.
+- O registry valida campos obrigatórios, tipos, limites de tamanho e rejeita parâmetros extras antes de despachar qualquer ferramenta; o subconjunto inicial de schemas é deliberadamente plano e escalar.
 - A saída de ferramenta é marcada como dado não confiável no contexto seguinte.
 - llama.cpp HTTP e OpenJarvis LlamaCppEngine usam o mesmo orquestrador. OpenJarvis é opcional e substituível.
 - O caminho simples continua disponível com `use_tools=false`; não existe fallback remoto.
