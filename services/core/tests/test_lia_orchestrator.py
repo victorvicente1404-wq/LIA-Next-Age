@@ -65,3 +65,29 @@ def test_orchestrator_requires_user_last_message(tmp_path):
         pass
     else:
         raise AssertionError("orchestrator accepted an assistant-ending history")
+
+def test_orchestrator_keeps_bounded_plan_and_executes_next_tool(tmp_path):
+    responses = iter([
+        json.dumps({
+            "type": "plan",
+            "goal": "Calcular e explicar",
+            "steps": ["Calcular 6 vezes 7", "Explicar o resultado"],
+        }),
+        json.dumps({
+            "type": "tool_call",
+            "name": "calculator",
+            "arguments": {"expression": "6*7"},
+        }),
+        json.dumps({"type": "final", "content": "O resultado é 42."}),
+    ])
+
+    async def complete(messages, temperature, max_tokens):
+        return next(responses)
+
+    result = asyncio.run(LiaOrchestrator(complete, MemoryStore(tmp_path / "memory.db")).run(
+        [{"role": "user", "content": "Calcule 6 vezes 7 e explique."}]
+    ))
+
+    assert result["content"] == "O resultado é 42."
+    assert result["plan"] == ["Calcular 6 vezes 7", "Explicar o resultado"]
+    assert result["tool_calls"] == 1
