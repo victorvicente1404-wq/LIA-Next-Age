@@ -156,6 +156,7 @@ def test_git_commit_rejects_directory_path_to_prevent_sensitive_file_bypass(tmp_
     (source_dir / ".env").write_text("TOKEN=secret\n", encoding="utf-8")
     git(workspace, "add", "src/app.py", "src/.env")
     git(workspace, "commit", "-m", "add source files")
+    git(workspace, "switch", "-c", "feature/directory-test")
     (source_dir / "app.py").write_text("print('changed')\n", encoding="utf-8")
     (source_dir / ".env").write_text("TOKEN=changed-secret\n", encoding="utf-8")
 
