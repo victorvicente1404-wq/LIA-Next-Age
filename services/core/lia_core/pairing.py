@@ -89,7 +89,7 @@ class PairingStore:
     def _normalize_scopes(scopes: list[str]) -> tuple[str, ...]:
         normalized = tuple(sorted(set(scopes)))
         if not normalized or not set(normalized).issubset(ALLOWED_DEVICE_SCOPES):
-            raise PairingError("Dispositivos só podem solicitar os escopos chat e voice.")
+            raise PairingError("Escopos permitidos: chat, voice e memory:read (opcional).")
         return normalized
 
     def create_request(
