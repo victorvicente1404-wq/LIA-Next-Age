@@ -225,3 +225,46 @@ button, textarea, select, input { font: inherit; }
 @media (max-width: 600px) {
   .voice-button { min-width: 62px; padding: 0 9px; }
 }
+
+.pairing-panel { display: grid; align-content: start; gap: 18px; padding: 22px; overflow: auto; }
+.pairing-heading, .pairing-section-heading, .pairing-card-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.pairing-heading h2 { margin: 0; color: #edf0f5; font-size: 18px; }
+.pairing-heading p { max-width: 620px; margin: 7px 0 0; color: #929bad; font-size: 12px; line-height: 1.6; }
+.pairing-heading > button, .pairing-approve-form button { min-height: 38px; padding: 0 13px; border: 0; border-radius: 9px; color: #171820; background: #d5a66b; font-size: 12px; font-weight: 750; cursor: pointer; }
+.pairing-heading > button:disabled, .pairing-approve-form button:disabled { opacity: .45; cursor: not-allowed; }
+.pairing-safety-note { padding: 12px 14px; border: 1px solid #66523d; border-radius: 11px; color: #e5c69e; background: #2c261f; font-size: 11px; line-height: 1.6; }
+.pairing-error, .pairing-notice { padding: 10px 12px; border-radius: 9px; font-size: 12px; line-height: 1.5; }
+.pairing-error { border: 1px solid #754b4c; color: #f0b9ae; background: #392426; }
+.pairing-notice { border: 1px solid #365347; color: #a8d8c2; background: #1b2925; }
+.pairing-section { display: grid; gap: 12px; }
+.pairing-section-heading { padding-bottom: 9px; border-bottom: 1px solid #343947; }
+.pairing-section-heading h3 { margin: 0; color: #dfe4ed; font-size: 13px; }
+.pairing-section-heading span { color: #929bad; font-size: 11px; }
+.pairing-empty { margin: 0; padding: 16px; border: 1px dashed #3a4250; border-radius: 11px; color: #8994a7; font-size: 12px; text-align: center; }
+.pairing-list { display: grid; gap: 10px; }
+.pairing-card { display: grid; gap: 11px; padding: 14px; border: 1px solid #343b4a; border-radius: 12px; background: #191e28; }
+.pairing-card.revoked { opacity: .68; }
+.pairing-card-heading strong { color: #e5e8ef; font-size: 13px; }
+.pairing-card-heading small, .pairing-request-meta { color: #8f9aab; font-size: 10px; }
+.pairing-scopes { display: flex; flex-wrap: wrap; gap: 6px; }
+.pairing-scope { padding: 5px 8px; border: 1px solid #3c4656; border-radius: 99px; color: #c4cfdf; background: #202734; font-size: 10px; }
+.pairing-request-meta { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.pairing-request-meta code { color: #d8ad78; }
+.pairing-approve-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.pairing-approve-form label { grid-column: 1 / -1; color: #bfc7d5; font-size: 11px; }
+.pairing-approve-form input { width: 100%; min-width: 0; min-height: 38px; padding: 9px 10px; border: 1px solid #3a4252; border-radius: 9px; color: #e6e9f0; background: #141923; font: inherit; font-size: 11px; }
+.pairing-approve-form input:focus { outline: 1px solid #9b79a8; }
+.pairing-state { color: #a8d8c2; font-size: 10px; }
+.pairing-state.revoked { color: #e2a49b; }
+.pairing-device-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.pairing-device-actions span { flex: 1 1 100%; color: #e5c69e; font-size: 10px; }
+.pairing-device-actions button { padding: 8px 10px; border: 1px solid #7c514a; border-radius: 8px; color: #f0b9ae; background: #3a2425; font-size: 10px; cursor: pointer; }
+.pairing-device-actions button.danger-confirm { color: #fff; background: #753b3a; }
+.pairing-device-actions button.pairing-cancel { border-color: #414858; color: #c7cbd5; background: transparent; }
+.pairing-device-actions button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 600px) {
+  .pairing-panel { padding: 18px 13px; }
+  .pairing-approve-form { grid-template-columns: minmax(0, 1fr); }
+  .pairing-approve-form button { width: 100%; }
+}
+
