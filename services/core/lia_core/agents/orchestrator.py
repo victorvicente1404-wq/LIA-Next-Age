@@ -187,7 +187,7 @@ class LiaOrchestrator:
                 continue
 
             if kind != "tool_call":
-                return self._result(raw.strip(), calls, step + 1, plan)
+                return self._result(raw.strip(), calls, step + 1, plan, profile.name)
 
             name = decision.get("name")
             arguments = decision.get("arguments")
@@ -222,7 +222,12 @@ class LiaOrchestrator:
         )
         final = await self._complete(transcript, temperature, max_tokens)
         parsed = self._parse_decision(final)
-        content = parsed.get("content") if parsed and parsed.get("type") == "final" else final
+        if parsed and parsed.get("type") == "final":
+            content = parsed.get("content")
+        elif parsed and parsed.get("type") in {"tool_call", "plan", "specialist"}:
+            content = "Não consegui concluir a tarefa dentro do limite de etapas."
+        else:
+            content = final
         if not isinstance(content, str) or not content.strip():
             content = "Não consegui concluir a tarefa dentro do limite de etapas."
         return self._result(content.strip(), calls, self._max_steps + 1, plan, profile.name)
