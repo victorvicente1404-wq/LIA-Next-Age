@@ -52,13 +52,13 @@ Restrinja a porta no firewall à rede/dispositivos necessários. Não use este c
 5. O `request_id` passa a ser o `device_id`. O dispositivo remoto deriva uma chave HMAC de `SHA-256(pairing_code)` e guarda essa chave como não extraível no armazenamento seguro do cliente. A resposta de aprovação contém apenas metadados e nunca retorna o segredo. O código bruto não é enviado novamente depois do pareamento.
 6. Liste dispositivos com `GET /api/v1/pairing/devices` e revogue com `DELETE /api/v1/pairing/devices/{device_id}` a partir do dispositivo principal.
 
-A aprovação é uma ação explícita. Criar uma solicitação remota não concede acesso. O segredo de pareamento tem 256 bits de entropia, expira em cinco minutos se não for aprovado e, após aprovação, assume a validade configurada do token.
+A aprovação é uma ação explícita. Criar uma solicitação remota não concede acesso. O segredo de pareamento tem 256 bits de entropia, expira em cinco minutos se não for aprovado e, após aprovação, sua derivação SHA-256 é usada como chave de assinatura até a validade configurada do dispositivo.
 
 ## Assinatura das requisições
 
-Além de `Authorization: Bearer <token>`, cada chamada remota autenticada deve enviar:
+Cada chamada remota autenticada deve enviar:
 
-- `X-Lia-Timestamp`: Unix time em segundos.
+- `X-Lia-Device-ID`: o `request_id` retornado ao criar a solicitação.\n- `X-Lia-Timestamp`: Unix time em segundos.
 - `X-Lia-Nonce`: valor aleatório novo, com 16 a 128 caracteres.
 - `X-Lia-Signature`: HMAC-SHA256 hexadecimal.
 
