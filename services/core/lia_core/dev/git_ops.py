@@ -71,6 +71,9 @@ class GitOperationManager:
                     "HOME": str(Path.home()),
                     "GIT_TERMINAL_PROMPT": "0",
                     "GIT_CONFIG_NOSYSTEM": "1",
+                    "GIT_CONFIG_COUNT": "1",
+                    "GIT_CONFIG_KEY_0": "core.hooksPath",
+                    "GIT_CONFIG_VALUE_0": os.devnull,
                 },
             )
         except subprocess.TimeoutExpired as exc:
@@ -125,8 +128,10 @@ class GitOperationManager:
         normalized: list[str] = []
         for raw in paths:
             path = Path(raw)
-            if path.is_absolute() or not raw.strip() or any(part in {"", ".", ".."} for part in path.parts):
+            if path.is_absolute() or not raw.strip() or path.as_posix() in {"", ".", ".."} or any(part in {"", ".", ".."} for part in path.parts):
                 raise GitOperationError("Caminho de arquivo inválido.")
+            if any(char in raw for char in "*?[]:") or "\\\\" in raw:
+                raise GitOperationError("Use caminhos literais, sem padrões ou pathspecs Git.")
             if any(part.lower() in SENSITIVE_PARTS for part in path.parts):
                 raise GitOperationError("Arquivos de diretórios sensíveis não podem entrar em commits.")
             if path.name.lower() in {".env", "id_rsa", "id_ed25519", "credentials.json", "secrets.json"}:
