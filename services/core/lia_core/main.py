@@ -357,7 +357,9 @@ def create_app(
             engine=getattr(request.app.state.inference, "engine_name", "llama.cpp"),
             memories_used=len(memory_records),
             agent=str(agent_result.get("agent", "lia_orchestrator")) if agent_result else "simple",
-            specialist=str(agent_result.get("specialist", "general")) if agent_result else "general",
+            specialist=(
+                str(agent_result.get("specialist", "general")) if agent_result else "general"
+            ),
             tool_calls=int(agent_result.get("tool_calls", 0)),
             agent_turns=int(agent_result.get("turns", 1)),
             plan=list(agent_result.get("plan", [])),
