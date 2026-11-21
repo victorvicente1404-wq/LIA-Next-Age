@@ -57,6 +57,7 @@ class GitOperationManager:
         try:
             result = subprocess.run(
                 [self._git, *arguments],
+                check=False,
                 cwd=root,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
@@ -115,7 +116,7 @@ class GitOperationManager:
             raise GitOperationError("Nome de branch inválido.")
         if normalized.lower() in PROTECTED_BRANCHES:
             raise GitOperationError("A Lia não pode criar ou substituir uma branch protegida.")
-        if normalized.startswith("-") or normalized.startswith("refs/"):
+        if normalized.startswith(("-", "refs/")):
             raise GitOperationError("Nome de branch não permitido.")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", normalized):
             raise GitOperationError("Use letras, números, ponto, hífen, sublinhado ou barra no nome.")
