@@ -335,7 +335,7 @@ def create_app(
                 media_type="application/json",
             )
         path = request.url.path
-        if path.startswith("/api/v1/dev/") or path.startswith("/api/v1/dev-"):
+        if path.startswith(("/api/v1/dev/", "/api/v1/dev-")):
             return Response(
                 content='{"detail":"Lia Dev permanece disponível somente no dispositivo principal."}',
                 status_code=403,
