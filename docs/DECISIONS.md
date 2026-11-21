@@ -56,13 +56,13 @@
 - Git hooks são desabilitados durante essas operações. Isso não substitui uma sandbox de sistema operacional.
 
 **Próximos passos:**
-- Reutilizar agentes simples/orchestrator e o runtime de ferramentas do OpenJarvis após validar a instalação no Termux.
+- Reutilizar o motor local OpenJarvis quando vantajoso, sem delegar a ele a identidade, o planejamento ou a política de ferramentas da Lia.
 - Manter os contratos de chat, memória e permissões pertencentes à aplicação Lia.
 - Avaliar o backend FTS5 do OpenJarvis separadamente da memória pessoal explícita.
 
 ## ADR-005 — Registry e política de ferramentas pertencem à Lia
 
-**Decisão:** a Lia mantém seu próprio registry de ferramentas, catálogo de permissões e política fail-closed. O OpenJarvis fornece o loop de orquestração quando disponível, mas não define sozinho o que a Lia pode executar.
+**Decisão:** a Lia mantém seu próprio registry de ferramentas, catálogo de permissões e política fail-closed. O módulo `LiaOrchestrator` controla o loop de decisão e despacho; OpenJarvis fornece somente um runtime de inferência opcional.
 
 **Primeira allowlist:** `calculator` (aritmética limitada, sem `eval`) e `memory_search` (consulta somente leitura à memória explícita).
 
