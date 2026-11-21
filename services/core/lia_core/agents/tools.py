@@ -3,6 +3,8 @@ from __future__ import annotations
 import ast
 import math
 import operator
+from typing import Any, ClassVar
+
 from lia_core.agents.registry import ToolPolicy, ToolRegistry, ToolResult, ToolSpec
 from lia_core.memory.store import MemoryStore
 
@@ -10,7 +12,7 @@ from lia_core.memory.store import MemoryStore
 class CalculatorTool:
     """Evaluate a small arithmetic grammar without eval or code execution."""
 
-    _binary = {
+    _binary: ClassVar[dict[type[ast.operator], Any]] = {
         ast.Add: operator.add,
         ast.Sub: operator.sub,
         ast.Mult: operator.mul,
@@ -18,7 +20,7 @@ class CalculatorTool:
         ast.Mod: operator.mod,
         ast.Pow: operator.pow,
     }
-    _unary = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+    _unary: ClassVar[dict[type[ast.unaryop], Any]] = {ast.UAdd: operator.pos, ast.USub: operator.neg}
 
     @property
     def spec(self) -> ToolSpec:
