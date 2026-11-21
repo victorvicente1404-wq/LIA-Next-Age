@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 
 from lia_core.config import Settings
+from lia_core.conversations import ConversationNotFound, ConversationStore
 from lia_core.dev.patches import PatchConflict, PatchManager, PatchNotFound
 from lia_core.dev.tasks import TaskNotAvailable, TaskProposalNotFound, TaskRunner
 from lia_core.dev.workspaces import (
@@ -41,6 +42,29 @@ class ChatRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0, le=2)
     max_tokens: int = Field(default=512, ge=1, le=4096)
     use_memory: bool = True
+    conversation_id: str | None = Field(default=None, max_length=36)
+
+
+class ConversationCreate(BaseModel):
+    title: str = Field(default="Nova conversa", min_length=1, max_length=72)
+
+
+class ConversationSummary(BaseModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+
+
+class ConversationMessage(BaseModel):
+    id: int
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: str
+
+
+class ConversationDetail(ConversationSummary):
+    messages: list[ConversationMessage]
 
 
 class ChatResponse(BaseModel):
@@ -176,6 +200,7 @@ def create_app(
     app = FastAPI(title="Lia Core", version="0.5.0")
     app.state.inference = inference or create_inference_client(config)
     app.state.memory = MemoryStore(memory_path or config.data_dir / "memory.sqlite3")
+    app.state.conversations = ConversationStore(config.data_dir / "conversations.sqlite3")
     app.state.workspaces = WorkspaceRegistry(config.dev_workspaces)
     app.state.patches = PatchManager(app.state.workspaces, config.data_dir / "dev-backups")
     app.state.tasks = TaskRunner(app.state.workspaces)
@@ -186,6 +211,51 @@ def create_app(
         return HealthResponse(
             inference="local_endpoint_configured" if app.state.inference_configured else "not_configured"
         )
+
+    @app.post(
+        "/api/v1/conversations",
+        response_model=ConversationSummary,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def create_conversation(
+        payload: ConversationCreate, request: Request
+    ) -> ConversationSummary:
+        return ConversationSummary(**request.app.state.conversations.create(payload.title))
+
+    @app.get("/api/v1/conversations", response_model=list[ConversationSummary])
+    async def list_conversations(
+        request: Request,
+        limit: int = Query(default=30, ge=1, le=100),
+    ) -> list[ConversationSummary]:
+        return [
+            ConversationSummary(**item)
+            for item in request.app.state.conversations.list(limit)
+        ]
+
+    @app.get(
+        "/api/v1/conversations/{conversation_id}",
+        response_model=ConversationDetail,
+    )
+    async def get_conversation(
+        conversation_id: str,
+        request: Request,
+        limit: int = Query(default=100, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+    ) -> ConversationDetail:
+        try:
+            result = request.app.state.conversations.get(conversation_id, limit, offset)
+        except ConversationNotFound as exc:
+            raise HTTPException(status_code=404, detail="Conversa não encontrada.") from exc
+        return ConversationDetail(**result)
+
+    @app.delete(
+        "/api/v1/conversations/{conversation_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def delete_conversation(conversation_id: str, request: Request) -> Response:
+        if not request.app.state.conversations.delete(conversation_id):
+            raise HTTPException(status_code=404, detail="Conversa não encontrada.")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.post("/api/v1/chat", response_model=ChatResponse)
     async def chat(payload: ChatRequest, request: Request) -> ChatResponse:
@@ -223,6 +293,18 @@ def create_app(
                     "message": "O modelo local não está disponível. Inicie o servidor llama.cpp.",
                 },
             ) from exc
+        if payload.conversation_id:
+            try:
+                last_user_message = next(
+                    item.content for item in reversed(payload.messages) if item.role == "user"
+                )
+                request.app.state.conversations.append_turn(
+                    payload.conversation_id, last_user_message, answer
+                )
+            except StopIteration:
+                raise HTTPException(status_code=422, detail="A conversa precisa de uma mensagem do usuário.")
+            except ConversationNotFound as exc:
+                raise HTTPException(status_code=404, detail="Conversa não encontrada.") from exc
         return ChatResponse(
             content=answer,
             engine=getattr(request.app.state.inference, "engine_name", "llama.cpp"),
