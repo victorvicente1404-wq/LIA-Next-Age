@@ -209,6 +209,13 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
         json={"messages": [{"role": "user", "content": "Oi"}]},
     ).status_code == 401
 
+    # Unknown API routes and methods are local-only unless explicitly allowlisted.
+    assert remote.get("/api/v1/internal/diagnostics").status_code == 403
+    assert remote.put("/api/v1/chat").status_code == 403
+    assert remote.post("/api/v1/memories", json={
+        "kind": "note", "content": "must stay local"
+    }).status_code == 403
+
     pending = local.get(
         "/api/v1/pairing/requests",
         headers={"Origin": "http://localhost:5173"},
