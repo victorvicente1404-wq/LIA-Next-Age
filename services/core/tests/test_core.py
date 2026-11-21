@@ -262,3 +262,24 @@ def test_lia_dev_patch_cannot_modify_secret_or_create_new_file(tmp_path: Path):
 
     assert secret.status_code == 403
     assert missing.status_code == 404
+
+
+def test_lia_dev_patch_can_be_cancelled_without_writing(tmp_path: Path):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    source = workspace / "main.py"
+    source.write_text("print('before')\n", encoding="utf-8")
+
+    with build_client(tmp_path, dev_workspaces=(workspace,)) as client:
+        proposal = client.post(
+            "/api/v1/dev/workspaces/workspace-1/patches",
+            json={"path": "main.py", "content": "print('after')\n"},
+        ).json()
+        cancelled = client.delete(f"/api/v1/dev/patches/{proposal['proposal_id']}")
+        applied = client.post(
+            f"/api/v1/dev/patches/{proposal['proposal_id']}/apply"
+        )
+
+    assert cancelled.status_code == 204
+    assert applied.status_code == 404
+    assert source.read_text(encoding="utf-8") == "print('before')\n"
