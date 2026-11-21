@@ -41,7 +41,7 @@ class MemoryStore:
                 connection.execute(
                     """
                     CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
-                    USING fts5(kind, memory_key, content, tokenize='porter unicode61')
+                    USING fts5(kind, memory_key, content, tokenize='unicode61 remove_diacritics 2')
                     """
                 )
                 connection.executescript(
@@ -124,7 +124,7 @@ class MemoryStore:
     def relevant(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         """Return saved preferences plus query matches for optional prompt context."""
         preferences = self.list(kind="preference", limit=8)
-        terms = list(dict.fromkeys(re.findall(r"[\wÀ-ÿ]{4,}", query.lower())))[:10]
+        terms = list(dict.fromkeys(re.findall(r"[\wÀ-ÿ]{3,}", query.lower())))[:10]
         matches: list[dict[str, Any]] = []
 
         if terms and self._fts_enabled:
