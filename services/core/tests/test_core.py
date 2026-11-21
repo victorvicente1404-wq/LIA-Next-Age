@@ -36,7 +36,8 @@ def build_client(
         runtime_backend="llama.cpp",
     )
     return TestClient(
-        create_app(settings=settings, inference=inference, memory_path=tmp_path / "memory.sqlite3")
+        create_app(settings=settings, inference=inference, memory_path=tmp_path / "memory.sqlite3"),
+        client=("127.0.0.1", 12345),
     )
 
 
