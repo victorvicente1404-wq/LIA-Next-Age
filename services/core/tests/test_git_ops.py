@@ -140,7 +140,7 @@ def test_git_commit_rejects_sensitive_paths_and_globs(tmp_path: Path):
         )
         backslash = client.post(
             "/api/v1/dev/workspaces/workspace-1/git/proposals",
-            json={"action": "commit", "message": "bad", "paths": [r"..\\escape"]},
+            json={"action": "commit", "message": "bad", "paths": [r"..\escape"]},
         )
         unsafe_checkout = client.post(
             "/api/v1/dev/workspaces/workspace-1/git/proposals",
