@@ -117,6 +117,13 @@ class DevRollbackResponse(BaseModel):
     backup_retained: bool
 
 
+class DevRollbackItem(BaseModel):
+    operation_id: str
+    workspace_id: str
+    path: str
+    status: str
+
+
 def create_app(
     settings: Settings | None = None,
     inference: ChatEngine | None = None,
@@ -285,6 +292,17 @@ def create_app(
         if not request.app.state.patches.cancel(proposal_id):
             raise HTTPException(status_code=404, detail="Proposta não encontrada ou expirada.")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+    @app.get("/api/v1/dev/rollbacks", response_model=list[DevRollbackItem])
+    async def list_workspace_rollbacks(
+        request: Request,
+        workspace_id: str | None = Query(default=None, max_length=100),
+    ) -> list[DevRollbackItem]:
+        return [
+            DevRollbackItem(**item)
+            for item in request.app.state.patches.list_applied(workspace_id)
+        ]
 
     @app.post(
         "/api/v1/dev/patches/{proposal_id}/apply",
