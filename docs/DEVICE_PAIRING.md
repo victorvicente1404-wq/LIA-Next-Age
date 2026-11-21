@@ -49,7 +49,7 @@ Restrinja a porta no firewall à rede/dispositivos necessários. Não use este c
 2. A resposta contém `request_id`, um `pairing_code` temporário e os escopos pedidos.
 3. No dispositivo principal, consulte `GET /api/v1/pairing/requests` por loopback. Confirme que o nome do dispositivo e o pedido são esperados.
 4. Aprove localmente com `POST /api/v1/pairing/requests/{request_id}/approve` e JSON `{"pairing_code":"CODIGO_MOSTRADO_NO_CELULAR"}`.
-5. Após a aprovação, o dispositivo remoto usa o próprio `pairing_code` como token Bearer. A resposta de aprovação contém apenas metadados e nunca retorna o segredo. Guarde o código/token no armazenamento seguro do cliente; não o cole em chats ou tickets.
+5. O `request_id` passa a ser o `device_id`. O dispositivo remoto deriva uma chave HMAC de `SHA-256(pairing_code)` e guarda essa chave como não extraível no armazenamento seguro do cliente. A resposta de aprovação contém apenas metadados e nunca retorna o segredo. O código bruto não é enviado novamente depois do pareamento.
 6. Liste dispositivos com `GET /api/v1/pairing/devices` e revogue com `DELETE /api/v1/pairing/devices/{device_id}` a partir do dispositivo principal.
 
 A aprovação é uma ação explícita. Criar uma solicitação remota não concede acesso. O segredo de pareamento tem 256 bits de entropia, expira em cinco minutos se não for aprovado e, após aprovação, assume a validade configurada do token.
@@ -71,7 +71,7 @@ TIMESTAMP
 NONCE
 ```
 
-A chave HMAC é o próprio token Bearer. O path inclui a query string, quando houver. Gere um nonce novo para toda requisição e sincronize o relógio do dispositivo. A assinatura não substitui TLS.
+A chave HMAC são os bytes do digest SHA-256 do `pairing_code` (não o texto hexadecimal). O cliente deve importar esse digest como uma chave HMAC não extraível e persistir a `CryptoKey` no IndexedDB, ou usar o armazenamento seguro equivalente do sistema operacional. O servidor armazena somente o digest hexadecimal e o usa como chave de verificação. O path inclui a query string, quando houver. Gere um nonce novo para toda requisição e sincronize o relógio do dispositivo. A assinatura não substitui TLS. Não envie o código bruto nem em `Authorization` nem em outro header depois da aprovação.
 
 ## Limitações desta etapa
 
