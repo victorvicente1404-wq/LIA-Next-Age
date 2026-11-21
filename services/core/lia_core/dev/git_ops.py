@@ -4,6 +4,7 @@ import hashlib
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -57,35 +58,49 @@ class GitOperationManager:
         *arguments: str,
         check: bool = True,
         env_overrides: dict[str, str] | None = None,
+        input_data: bytes | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if not self._git:
             raise GitOperationError("Git não está instalado neste ambiente.")
+        command_env = {
+            "PATH": os.environ.get("PATH", str(Path(self._git).parent)),
+            "HOME": str(Path.home()),
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.hooksPath",
+            "GIT_CONFIG_VALUE_0": os.devnull,
+        }
+        if env_overrides:
+            command_env.update(env_overrides)
+        run_options: dict[str, Any] = {
+            "check": False,
+            "cwd": root,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "timeout": 20,
+            "shell": False,
+            "env": command_env,
+        }
+        if input_data is None:
+            run_options.update({
+                "stdin": subprocess.DEVNULL,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+            })
+        else:
+            run_options["input"] = input_data
         try:
-            result = subprocess.run(
-                [self._git, *arguments],
-                check=False,
-                cwd=root,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=20,
-                shell=False,
-                env={
-                    "PATH": os.environ.get("PATH", str(Path(self._git).parent)),
-                    "HOME": str(Path.home()),
-                    "GIT_TERMINAL_PROMPT": "0",
-                    "GIT_CONFIG_NOSYSTEM": "1",
-                    "GIT_CONFIG_COUNT": "1",
-                    "GIT_CONFIG_KEY_0": "core.hooksPath",
-                    "GIT_CONFIG_VALUE_0": os.devnull,
-                },
-            )
+            result = subprocess.run([self._git, *arguments], **run_options)
         except subprocess.TimeoutExpired as exc:
             raise GitOperationError("A operação Git excedeu 20 segundos.") from exc
-        output = result.stdout[-MAX_OUTPUT:]
+        raw_output = result.stdout
+        output = (
+            raw_output.decode("utf-8", errors="replace")[-MAX_OUTPUT:]
+            if isinstance(raw_output, bytes)
+            else raw_output[-MAX_OUTPUT:]
+        )
         if check and result.returncode:
             raise GitOperationError(output.strip() or "O Git recusou a operação.")
         return subprocess.CompletedProcess(result.args, result.returncode, output)
@@ -108,82 +123,64 @@ class GitOperationManager:
     def _fingerprint(value: str) -> str:
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
-    def _fingerprint_files(self, root: Path, paths: list[str]) -> str:
-        digest = hashlib.sha256()
-        total_size = 0
-        for relative in sorted(paths):
-            path = root / relative
-            if (
-                path.is_symlink()
-                or not path.is_file()
-                or not path.resolve().is_relative_to(root)
-            ):
-                raise GitOperationError(
-                    "Um arquivo selecionado deixou de ser um arquivo regular do workspace."
-                )
-            relative_bytes = relative.encode("utf-8")
-            size = path.stat().st_size
-            total_size += size
-            if total_size > MAX_COMMIT_CONTENT_BYTES:
-                raise GitOperationError(
-                    "O conteúdo selecionado excede o limite de 5 MB para revisão segura."
-                )
-            digest.update(len(relative_bytes).to_bytes(4, "big"))
-            digest.update(relative_bytes)
-            digest.update(size.to_bytes(8, "big"))
-            bytes_read = 0
-            with path.open("rb") as stream:
-                while chunk := stream.read(64 * 1024):
-                    bytes_read += len(chunk)
-                    digest.update(chunk)
-            if bytes_read != size:
-                raise GitOperationError(
-                    "Um arquivo mudou enquanto sua impressão digital era calculada."
-                )
-        return digest.hexdigest()
-
     def _stage_commit_snapshot(
         self, root: Path, paths: list[str], head: str
     ) -> tuple[str, str]:
-        """Fingerprint an isolated Git index and return its immutable tree."""
+        """Build an isolated index from exact file bytes, without running clean filters."""
+        self._validate_paths(root, paths)
+        total_size = 0
         with tempfile.TemporaryDirectory(prefix="lia-git-index-") as temporary:
             index_env = {"GIT_INDEX_FILE": str(Path(temporary) / "index")}
             self._run(root, "read-tree", head, env_overrides=index_env)
-            self._run(root, "add", "--", *paths, env_overrides=index_env)
-            staged = self._run(
-                root, "ls-files", "--stage", "-z", "--", *paths,
-                env_overrides=index_env,
-            ).stdout
-            records = [record for record in staged.split("\0") if record]
-            if len(records) != len(paths):
-                raise GitOperationError(
-                    "Não foi possível criar um snapshot completo dos arquivos selecionados."
-                )
-            entries: dict[str, tuple[str, str]] = {}
-            for record in records:
-                try:
-                    metadata, relative = record.split("\t", 1)
-                    mode, object_id, stage = metadata.split()
-                except ValueError as exc:
-                    raise GitOperationError("O índice Git retornou uma entrada inválida.") from exc
-                if stage != "0" or mode not in {"100644", "100755"}:
-                    raise GitOperationError(
-                        "Somente arquivos regulares sem conflitos podem entrar em commits."
-                    )
-                entries[relative] = (mode, object_id)
-            if set(entries) != set(paths):
-                raise GitOperationError(
-                    "O snapshot Git não corresponde aos caminhos aprovados."
-                )
             digest = hashlib.sha256()
             for relative in sorted(paths):
-                mode, object_id = entries[relative]
-                digest.update(relative.encode("utf-8"))
-                digest.update(b"\0")
-                digest.update(mode.encode("ascii"))
-                digest.update(b"\0")
-                digest.update(object_id.encode("ascii"))
-                digest.update(b"\0")
+                path = root / relative
+                flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                try:
+                    descriptor = os.open(path, flags)
+                except OSError as exc:
+                    raise GitOperationError(
+                        "Um arquivo selecionado não pôde ser aberto com segurança."
+                    ) from exc
+                try:
+                    file_stat = os.fstat(descriptor)
+                    if not stat.S_ISREG(file_stat.st_mode):
+                        raise GitOperationError(
+                            "Somente arquivos regulares podem entrar em commits."
+                        )
+                    content = bytearray()
+                    with os.fdopen(descriptor, "rb", closefd=False) as stream:
+                        while chunk := stream.read(64 * 1024):
+                            content.extend(chunk)
+                    total_size += len(content)
+                    if total_size > MAX_COMMIT_CONTENT_BYTES:
+                        raise GitOperationError(
+                            "O conteúdo selecionado excede o limite de 5 MB para revisão segura."
+                        )
+                    if len(content) != file_stat.st_size:
+                        raise GitOperationError(
+                            "Um arquivo mudou enquanto seu snapshot era calculado."
+                        )
+                    mode = "100755" if file_stat.st_mode & stat.S_IXUSR else "100644"
+                    object_id = self._run(
+                        root, "hash-object", "-w", "--no-filters", "--stdin",
+                        input_data=bytes(content),
+                    ).stdout.strip()
+                    if not re.fullmatch(r"[0-9a-f]{40,64}", object_id):
+                        raise GitOperationError("O Git não produziu um objeto de arquivo válido.")
+                    self._run(
+                        root, "update-index", "--add", "--cacheinfo",
+                        mode, object_id, "--", relative,
+                        env_overrides=index_env,
+                    )
+                    digest.update(relative.encode("utf-8"))
+                    digest.update(b"\\0")
+                    digest.update(mode.encode("ascii"))
+                    digest.update(b"\\0")
+                    digest.update(object_id.encode("ascii"))
+                    digest.update(b"\\0")
+                finally:
+                    os.close(descriptor)
             tree = self._run(root, "write-tree", env_overrides=index_env).stdout.strip()
             if not re.fullmatch(r"[0-9a-f]{40,64}", tree):
                 raise GitOperationError("O Git não produziu uma árvore válida para o commit.")
