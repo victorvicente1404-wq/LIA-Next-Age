@@ -90,3 +90,17 @@ Development tasks are selected from a fixed catalog (Git status/diff, pytest, Ru
 pytest
 ruff check .
 ```
+
+## Agent runtime and tools
+
+When OpenJarvis is installed and selected as the local inference backend, chat can use its pinned `OrchestratorAgent` tool-calling loop. The agent receives the conversation context and a Lia-owned registry/policy layer; the model does not own tool permissions.
+
+The initial allowlist contains only:
+- `calculator`: bounded arithmetic grammar, implemented without `eval` or code execution.
+- `memory_search`: read-only retrieval from memories explicitly saved by the user.
+
+The policy denies unknown tools and every tool not explicitly allowlisted as read-only. The OpenJarvis `before_tool_call` governance hook is checked before dispatch. No file-write, shell, Git mutation, web, messaging, calendar, or home-automation tools are exposed to the conversational agent in this milestone.
+
+If OpenJarvis is not installed, the direct llama.cpp adapter remains available and chat uses its simple completion path. No remote provider is used as fallback. Set `use_tools=false` on a chat request to force the simple completion path even when OpenJarvis is available.
+
+The API response includes `agent`, `tool_calls`, and `agent_turns` so the UI can later show which local tools were used. The OpenJarvis orchestration path has not yet been validated on Android or with the user's real GGUF model.
