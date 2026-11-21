@@ -176,11 +176,11 @@ class GitOperationManager:
                         env_overrides=index_env,
                     )
                     digest.update(relative.encode("utf-8"))
-                    digest.update(b"\\0")
+                    digest.update(b"\0")
                     digest.update(mode.encode("ascii"))
-                    digest.update(b"\\0")
+                    digest.update(b"\0")
                     digest.update(object_id.encode("ascii"))
-                    digest.update(b"\\0")
+                    digest.update(b"\0")
                 finally:
                     os.close(descriptor)
             tree = self._run(root, "write-tree", env_overrides=index_env).stdout.strip()
