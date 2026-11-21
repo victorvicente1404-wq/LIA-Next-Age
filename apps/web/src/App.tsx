@@ -278,7 +278,6 @@ export default function App() {
       };
       audio.onerror = () => {
         URL.revokeObjectURL(audioUrl);
-        audioRef.current = null;
         setPlayingMessage(null);
         setError("O navegador não conseguiu reproduzir o áudio.");
       };
