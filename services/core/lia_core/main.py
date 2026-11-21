@@ -23,6 +23,7 @@ from lia_core.dev.workspaces import (
 from lia_core.inference.factory import create_inference_client
 from lia_core.inference.llamacpp import LocalModelError
 from lia_core.memory.store import MemoryStore
+from lia_core.voice import LocalVoice, VoiceProcessingError, VoiceUnavailable
 
 
 class HealthResponse(BaseModel):
@@ -79,6 +80,30 @@ class ChatResponse(BaseModel):
     tool_calls: int = 0
     agent_turns: int = 1
     plan: list[str] = Field(default_factory=list)
+
+
+class VoiceSpeechRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("text")
+    @classmethod
+    def speech_text_must_not_be_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("O texto para síntese não pode estar vazio.")
+        return normalized
+
+
+class VoiceTranscriptResponse(BaseModel):
+    text: str
+
+
+class VoiceStatusResponse(BaseModel):
+    transcription_configured: bool
+    synthesis_configured: bool
+    processing: str
+    transcription_engine: str
+    synthesis_engine: str
 
 
 class ChatEngine(Protocol):
@@ -230,6 +255,13 @@ def create_app(
     config = settings or Settings.from_env()
     app = FastAPI(title="Lia Core", version="0.5.0")
     app.state.inference = inference or create_inference_client(config)
+    app.state.voice = LocalVoice(
+        stt_url=config.voice_stt_url,
+        piper_binary=config.voice_tts_binary,
+        piper_model=config.voice_tts_model,
+        timeout_seconds=config.voice_timeout_seconds,
+        max_audio_bytes=config.voice_max_audio_bytes,
+    )
     app.state.memory = MemoryStore(memory_path or config.data_dir / "memory.sqlite3")
     app.state.conversations = ConversationStore(config.data_dir / "conversations.sqlite3")
     app.state.workspaces = WorkspaceRegistry(config.dev_workspaces)
@@ -288,6 +320,54 @@ def create_app(
         if not request.app.state.conversations.delete(conversation_id):
             raise HTTPException(status_code=404, detail="Conversa não encontrada.")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.get("/api/v1/voice/status", response_model=VoiceStatusResponse)
+    async def voice_status(request: Request) -> VoiceStatusResponse:
+        return VoiceStatusResponse(**request.app.state.voice.status())
+
+    @app.post(
+        "/api/v1/voice/transcriptions",
+        response_model=VoiceTranscriptResponse,
+    )
+    async def transcribe_voice(request: Request) -> VoiceTranscriptResponse:
+        content_type = request.headers.get("content-type", "")
+        declared_size = request.headers.get("content-length")
+        if declared_size:
+            try:
+                if int(declared_size) > request.app.state.voice.max_audio_bytes:
+                    raise HTTPException(status_code=413, detail="Áudio excede o limite permitido.")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Cabeçalho de tamanho inválido.")
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > request.app.state.voice.max_audio_bytes:
+                raise HTTPException(status_code=413, detail="Áudio excede o limite permitido.")
+            chunks.append(chunk)
+        try:
+            text = await request.app.state.voice.transcribe(b"".join(chunks), content_type)
+        except VoiceUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except VoiceProcessingError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return VoiceTranscriptResponse(text=text)
+
+    @app.post("/api/v1/voice/speech")
+    async def synthesize_voice(
+        payload: VoiceSpeechRequest, request: Request
+    ) -> Response:
+        try:
+            audio = await request.app.state.voice.synthesize(payload.text)
+        except VoiceUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except VoiceProcessingError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return Response(
+            content=audio,
+            media_type="audio/wav",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.post("/api/v1/chat", response_model=ChatResponse)
     async def chat(payload: ChatRequest, request: Request) -> ChatResponse:
