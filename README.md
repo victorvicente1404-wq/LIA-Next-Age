@@ -17,7 +17,7 @@ Assistente pessoal local-first, modular e extensível.
 2. **Núcleo:** API Python para conversação, roteamento, políticas e coordenação de ferramentas.
 3. **Runtime local:** adaptador OpenJarvis opcional para seu motor LlamaCppEngine; adaptador HTTP direto para llama.cpp como caminho compatível e fallback exclusivamente local.
 4. **Memória:** SQLite local, independente do modelo, com gerenciamento explícito e recuperação contextual de preferências e memórias relevantes.
-5. **Lia Dev:** interface de exploração, leitura de workspaces autorizados e propostas de patch com diff; aplicação em chamada separada, hash contra alterações concorrentes, escrita atômica e backup. Propostas pendentes expiram em 30 minutos e são limitadas a 50 por processo; IDs de rollback ativos permanecem em memória até reinício.
+5. **Lia Dev:** interface de exploração, leitura de workspaces autorizados e propostas de patch com diff; aplicação em chamada separada, hash contra alterações concorrentes, escrita atômica e backup. Propostas pendentes expiram em 30 minutos e são limitadas a 50 por processo; Metadados de rollback são persistidos em `LIA_DATA_DIR/dev-backups/operations.json` e vinculados ao caminho original do workspace; propostas pendentes são descartadas no reinício.
 6. **Percepção e voz:** módulos opcionais para áudio, câmera e contexto, sempre com indicadores e consentimento.
 7. **Conectores:** adaptadores independentes para WhatsApp, Google e dispositivos domésticos.
 
