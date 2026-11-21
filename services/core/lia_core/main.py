@@ -374,22 +374,13 @@ def create_app(
             required_scope = "voice"
         elif path == "/api/v1/memories" or path.startswith("/api/v1/memories/"):
             required_scope = "memory:write" if request.method in {"POST", "DELETE", "PUT", "PATCH"} else "memory:read"
-        authorization = request.headers.get("authorization", "")
-        scheme, _, token = authorization.partition(" ")
-        if scheme.lower() != "bearer" or not token:
-            return Response(
-                content='{"detail":"Dispositivo não autenticado."}',
-                status_code=401,
-                media_type="application/json",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        device = request.app.state.pairing.authenticate(token)
+        device_id = request.headers.get("x-lia-device-id", "")
+        device = request.app.state.pairing.authenticate(device_id)
         if device is None:
             return Response(
-                content='{"detail":"Token inválido, expirado ou revogado."}',
+                content='{"detail":"Dispositivo inválido, expirado ou revogado."}',
                 status_code=401,
                 media_type="application/json",
-                headers={"WWW-Authenticate": "Bearer"},
             )
         if required_scope not in device["scopes"]:
             return Response(
@@ -404,7 +395,7 @@ def create_app(
         if request.url.query:
             path_and_query += "?" + request.url.query
         if not request.app.state.pairing.verify_request_signature(
-            device, token, request.method, path_and_query, timestamp, nonce, signature
+            device, request.method, path_and_query, timestamp, nonce, signature
         ):
             return Response(
                 content='{"detail":"Assinatura ausente/inválida, relógio fora da janela ou nonce reutilizado."}',
