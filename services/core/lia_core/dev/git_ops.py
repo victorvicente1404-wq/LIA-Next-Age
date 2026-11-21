@@ -180,7 +180,9 @@ class GitOperationManager:
                 or not absolute.is_file()
                 or not absolute.resolve().is_relative_to(root)
             ):
-                raise GitOperationError("Somente arquivos regulares dentro do workspace podem entrar em commits.")
+                raise GitOperationError(
+                    "Somente arquivos regulares dentro do workspace podem entrar em commits."
+                )
             normalized.append(path.as_posix())
         if len(set(normalized)) != len(normalized):
             raise GitOperationError("A lista contém caminhos duplicados.")
