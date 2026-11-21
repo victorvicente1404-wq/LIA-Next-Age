@@ -35,6 +35,7 @@ def test_pairing_store_approves_once_persists_hash_and_revokes(tmp_path: Path):
     assert request["pairing_code"]
     assert set(approved["scopes"]) == {"chat", "voice"}
     assert store.authenticate(request["pairing_code"])["device_id"] == approved["device_id"]
+    assert request["pairing_code"].encode() not in (tmp_path / "pairing.sqlite3").read_bytes()
 
     with pytest.raises(PairingError):
         store.approve(request["request_id"], request["pairing_code"])
@@ -110,6 +111,7 @@ def test_remote_pairing_requires_https_and_trusted_origin(tmp_path: Path):
         json={"device_name": "Celular", "scopes": ["chat"]},
     )
     assert request.status_code == 201
+    assert request.headers["cache-control"] == "no-store"
     assert request.json()["expires_in_seconds"] == 300
 
 
@@ -143,6 +145,7 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
         json={"pairing_code": created["pairing_code"]},
     )
     assert approved.status_code == 200
+    assert approved.headers["cache-control"] == "no-store"
     assert "access_token" not in approved.json()
     token = created["pairing_code"]
 
