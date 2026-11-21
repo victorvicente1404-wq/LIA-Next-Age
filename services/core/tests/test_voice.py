@@ -47,8 +47,9 @@ def test_voice_transcription_posts_audio_to_local_whisper(monkeypatch):
             return {"text": "  Olá, Lia!  "}
 
     class FakeClient:
-        def __init__(self, timeout):
+        def __init__(self, timeout, trust_env):
             captured["timeout"] = timeout
+            captured["trust_env"] = trust_env
 
         async def __aenter__(self):
             return self
@@ -72,6 +73,7 @@ def test_voice_transcription_posts_audio_to_local_whisper(monkeypatch):
 
     assert result == "Olá, Lia!"
     assert captured["url"] == "http://127.0.0.1:8178/inference"
+    assert captured["trust_env"] is False
     assert captured["files"]["file"][0] == "lia-recording.webm"
     assert captured["data"] == {"response_format": "json"}
 
