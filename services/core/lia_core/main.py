@@ -276,6 +276,16 @@ def create_app(
             raise HTTPException(status_code=415, detail="Arquivo não é texto UTF-8 compatível.") from exc
         return DevPatchProposal(**result)
 
+
+    @app.delete(
+        "/api/v1/dev/patches/{proposal_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def cancel_workspace_patch(proposal_id: str, request: Request) -> Response:
+        if not request.app.state.patches.cancel(proposal_id):
+            raise HTTPException(status_code=404, detail="Proposta não encontrada ou expirada.")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     @app.post(
         "/api/v1/dev/patches/{proposal_id}/apply",
         response_model=DevPatchApplied,
