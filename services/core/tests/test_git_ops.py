@@ -37,7 +37,7 @@ def client_for(tmp_path: Path, workspace: Path) -> TestClient:
         dev_workspaces=(workspace,),
         runtime_backend="llama.cpp",
     )
-    return TestClient(create_app(settings=settings))
+    return TestClient(create_app(settings=settings), client=("127.0.0.1", 12345))
 
 
 def test_git_branch_commit_and_revert_require_review_and_approval(tmp_path: Path):
