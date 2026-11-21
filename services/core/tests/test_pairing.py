@@ -41,9 +41,9 @@ def test_pairing_store_approves_once_persists_hash_and_revokes(tmp_path: Path):
         store.approve(request["request_id"], request["pairing_code"])
 
     reopened = PairingStore(tmp_path / "pairing.sqlite3")
-    assert reopened.authenticate(request["pairing_code"])["device_id"] == approved["device_id"]
+    assert reopened.authenticate(approved["device_id"])["device_id"] == approved["device_id"]
     assert reopened.revoke(approved["device_id"]) is True
-    assert reopened.authenticate(request["pairing_code"]) is None
+    assert reopened.authenticate(approved["device_id"]) is None
     assert reopened.revoke(approved["device_id"]) is False
 
 
@@ -168,7 +168,7 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     conversation = remote.post(
         "/api/v1/conversations",
         headers=signed_headers(
-            token, "POST", "/api/v1/conversations", "nonce-123456789017"
+            device_id, token, "POST", "/api/v1/conversations", "nonce-123456789017"
         ),
         json={"title": "Conversa do celular"},
     )
@@ -177,7 +177,7 @@ def test_remote_api_requires_scoped_signed_token_and_nonce(tmp_path: Path):
     delete_conversation = remote.delete(
         conversation_path,
         headers=signed_headers(
-            token, "DELETE", conversation_path, "nonce-123456789018"
+            device_id, token, "DELETE", conversation_path, "nonce-123456789018"
         ),
     )
     assert delete_conversation.status_code == 403
