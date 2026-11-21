@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 IGNORED_NAMES = {
     ".git",
     ".venv",
+    ".ssh",
+    ".gnupg",
+    ".aws",
+    ".azure",
+    ".kube",
+    ".docker",
     "venv",
     "node_modules",
     "__pycache__",
@@ -18,6 +25,7 @@ IGNORED_NAMES = {
     "build",
     ".next",
 }
+SENSITIVE_DIRECTORIES = {".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker"}
 SENSITIVE_SUFFIXES = {".pem", ".key", ".p12", ".pfx"}
 SENSITIVE_NAMES = {
     ".env",
@@ -111,6 +119,8 @@ class WorkspaceRegistry:
         if name in SENSITIVE_NAMES:
             return True
         if name.startswith(".env.") and name != ".env.example":
+            return True
+        if any(part.lower() in SENSITIVE_DIRECTORIES for part in path.parts):
             return True
         return path.suffix.lower() in SENSITIVE_SUFFIXES
 
