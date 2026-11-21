@@ -154,6 +154,11 @@ def test_remote_device_can_check_only_its_pairing_request_status(tmp_path: Path)
     assert pending.status_code == 200
     assert pending.json() == {"status": "pending"}
     assert pending.headers["cache-control"] == "no-store"
+    untrusted = remote.get(
+        f"/api/v1/pairing/requests/{request_id}/status",
+        headers={"Origin": "https://evil.test"},
+    )
+    assert untrusted.status_code == 403
 
     approved = local.post(
         f"/api/v1/pairing/requests/{request_id}/approve",

@@ -128,7 +128,7 @@ export default function App() {
       .then((status) => { if (active) setVoiceStatus(status); })
       .catch(() => { if (active) setVoiceStatus(null); });
     return () => { active = false; };
-  }, []);
+  }, [isLocalClient, pairedDeviceId]);
 
   useEffect(() => {
     let active = true;
