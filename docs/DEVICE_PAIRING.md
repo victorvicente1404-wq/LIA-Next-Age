@@ -15,7 +15,7 @@ O modo local continua funcionando sem pareamento, sem conta hospedada e sem serv
 - Há limite de 5 solicitações por minuto e por endereço de origem, além de no máximo 10 solicitações pendentes.
 - A aprovação acontece no dispositivo principal; o token de acesso é mostrado uma única vez.
 - Apenas hashes SHA-256 dos tokens são persistidos. Tokens têm validade configurável (30 dias por padrão) e podem ser revogados individualmente.
-- Escopos de dispositivo são limitados a `chat` e `voice`. Memória e Lia Dev não são concedidos; Lia Dev permanece exclusivamente local.
+- Escopos disponíveis são `chat`, `voice` e `memory:read`. O padrão é somente `chat` e `voice`; memória exige solicitação e aprovação explícitas. Sem `memory:read`, o chat remoto não injeta memórias nem habilita ferramentas que consultam a memória. Escrita de memória e Lia Dev não são concedidas; Lia Dev permanece exclusivamente local.
 - Cada requisição autenticada exige timestamp com tolerância de 60 segundos, nonce aleatório de uso único e assinatura HMAC-SHA256. Repetir a mesma requisição assinada é recusado.
 - Tokens nunca devem ser enviados em URLs, query strings ou logs.
 
