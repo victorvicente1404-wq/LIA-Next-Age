@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import hashlib
 import hmac
 import secrets
 import sqlite3
@@ -245,7 +244,7 @@ class PairingStore:
         now = int(time.time())
         if abs(now - issued_at) > 60 or not 16 <= len(nonce) <= 128:
             return False
-        message = "\\n".join(
+        message = "\n".join(
             [method.upper(), path_and_query, timestamp, nonce]
         ).encode("utf-8")
         expected = hmac.new(token.encode("utf-8"), message, hashlib.sha256).hexdigest()
