@@ -45,6 +45,7 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] Adaptador opcional para OpenJarvis LlamaCppEngine, selecionável por configuração.
 - [x] Memória SQLite independente do modelo, gerenciamento explícito e recuperação contextual.
 - [x] Histórico persistente de conversas em SQLite separado da memória, com sessões, restauração, paginação e exclusão.
+- [x] Lia Dev com operações Git tipadas, prévia e aprovação separada, proteção de `main`/`master` e reversão sem reescrever histórico.
 - [x] Lia Dev: listar workspaces autorizados, navegar pastas e ler arquivos de texto com limites.
 - [x] CI: testes Python, Ruff e build web.
 - [x] Lia Dev: proposta de patch com diff, aprovação em endpoint separado, verificação de versão, escrita atômica e backup para rollback.
