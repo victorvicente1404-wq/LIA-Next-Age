@@ -156,7 +156,7 @@ class MemoryStore:
                     SELECT m.id, m.kind, m.memory_key, m.content, m.created_at
                     FROM memories_fts f
                     JOIN memories m ON m.id = f.rowid
-                    WHERE memories_fts MATCH ?
+                    WHERE memories_fts MATCH ? AND m.kind != 'preference'
                     ORDER BY bm25(memories_fts)
                     LIMIT ?
                     """,
@@ -176,7 +176,7 @@ class MemoryStore:
             seen: set[int] = set()
             for term in terms:
                 for item in self.list(query=term, limit=remaining + len(preferences)):
-                    if item["id"] not in seen:
+                    if item["kind"] != "preference" and item["id"] not in seen:
                         matches.append(item)
                         seen.add(item["id"])
                     if len(matches) >= remaining + len(preferences):
