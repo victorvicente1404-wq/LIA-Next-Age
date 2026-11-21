@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import DevPanel from "./DevPanel";
 import MemoryPanel from "./MemoryPanel";
+import PairingPanel from "./PairingPanel";
 
 type Message = {
   role: "user" | "assistant";
@@ -30,7 +31,7 @@ type CoreHealth = {
   inference: string;
 };
 
-type ActiveTab = "chat" | "memory" | "dev";
+type ActiveTab = "chat" | "memory" | "devices" | "dev";
 
 type VoiceStatus = {
   transcription_configured: boolean;
@@ -384,6 +385,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={activeTab === "devices" ? "tab active" : "tab"}
+            onClick={() => setActiveTab("devices")}
+          >
+            Dispositivos
+          </button>
+          <button
+            type="button"
             className={activeTab === "dev" ? "tab active" : "tab"}
             onClick={() => setActiveTab("dev")}
           >
@@ -395,6 +403,8 @@ export default function App() {
           <DevPanel />
         ) : activeTab === "memory" ? (
           <MemoryPanel />
+        ) : activeTab === "devices" ? (
+          <PairingPanel />
         ) : (
           <>
             <div className="conversation-toolbar">
