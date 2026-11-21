@@ -21,7 +21,7 @@ Responda EXCLUSIVAMENTE com um objeto JSON:
 Para usar ferramenta: {"type":"tool_call","name":"nome","arguments":{...}}
 Para responder: {"type":"final","content":"sua resposta"}
 Não faça mais de uma chamada de ferramenta no mesmo objeto.
-Se não precisar de ferramenta, responda final.
+Se a tarefa exigir várias etapas, comece com um plano curto usando {"type":"plan","goal":"...","steps":["..."]}.\nUm plano descreve intenção, não concede permissões. Execute somente ferramentas allowlisted.\nSe não precisar de ferramenta, responda final.
 """
 
 
