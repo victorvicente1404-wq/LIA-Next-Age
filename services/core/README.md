@@ -95,7 +95,7 @@ ruff check .
 
 Chat with `use_tools=true` uses `LiaOrchestrator`, owned by the Lia application and independent of the inference backend. It runs a bounded JSON decision loop (maximum four tool/model steps) over the same local model adapter. Both the direct llama.cpp HTTP adapter and the optional OpenJarvis LlamaCppEngine adapter expose this orchestration contract.
 
-The current local read-only tool allowlist contains:
+For multi-step requests, the model may return a bounded plan (one goal and up to six short steps). Plans are descriptive intent, never authorization; every execution still passes the same tool policy. The orchestration loop permits at most four decision steps and one final synthesis request.\n\nThe current local read-only tool allowlist contains:
 - `calculator`: bounded arithmetic grammar, without `eval` or code execution.
 - `memory_search`: retrieval from memories explicitly saved by the user.
 
@@ -103,4 +103,4 @@ Every proposed tool call is dispatched through Lia's fail-closed registry and po
 
 Set `use_tools=false` to use a plain local completion. No hosted provider is used as fallback. The UI displays the orchestration identifier and tool-call count returned by the API.
 
-This is the first cognitive orchestration milestone, not full autonomous planning. Persistent task plans, specialist agents, approval workflows for external actions, and recovery of interrupted jobs remain future work. Runtime behavior with the real GGUF and Android device still requires hands-on validation.
+This is the first cognitive orchestration milestone, with bounded structured plans and tool dispatch, not full autonomous task management. Persistent task plans, specialist agents, approval workflows for external actions, and recovery of interrupted jobs remain future work. Runtime behavior with the real GGUF and Android device still requires hands-on validation.
