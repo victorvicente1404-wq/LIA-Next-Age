@@ -208,10 +208,32 @@ bool prepare_prompt(const std::vector<std::string> & roles,
         }
     }
     if (!template_applied) {
-        for (size_t i = 0; i < roles.size(); ++i) {
-            prompt += roles[i] + ":\\n" + contents[i] + "\\n";
+        // Qwen2.5 GGUF files are sometimes distributed without the
+        // tokenizer.chat_template metadata. Their native format is ChatML,
+        // so reconstruct the official message framing instead of feeding
+        // plain "system:" / "user:" labels to an instruction-tuned model.
+        char architecture[128] = {};
+        const int32_t architecture_size = llama_model_meta_val_str(
+            g_model, "general.architecture", architecture, sizeof(architecture));
+        if (architecture_size > 0 && std::string(architecture) == "qwen2") {
+            for (size_t i = 0; i < roles.size(); ++i) {
+                prompt += "<|im_start|>" + roles[i] + "\\n" +
+                    contents[i] + "<|im_end|>\\n";
+            }
+            prompt += "<|im_start|>assistant\\n";
+            template_applied = true;
+            LOGE("Prompt format: reconstructed Qwen2 ChatML (missing/unsupported GGUF template)");
+        } else {
+            // Keep a readable fallback for other architectures. Use actual
+            // line breaks; literal backslash-n sequences are not separators.
+            for (size_t i = 0; i < roles.size(); ++i) {
+                prompt += roles[i] + ":\n" + contents[i] + "\n";
+            }
+            prompt += "assistant:\n";
+            LOGE("Prompt format: generic fallback; architecture=%s", architecture_size > 0 ? architecture : "unknown");
         }
-        prompt += "assistant:\\n";
+    } else {
+        LOGE("Prompt format: GGUF chat template");
     }
 
     const llama_vocab * vocab = llama_model_get_vocab(g_model);
