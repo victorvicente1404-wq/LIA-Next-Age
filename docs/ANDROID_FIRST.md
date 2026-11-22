@@ -6,7 +6,7 @@ Android is Lia's primary platform. The first usable release must install and run
 
 Desktop support is a secondary deployment target. A PC may run the same Lia core and local model runtime when available, but it is not the default host and must not be required for normal phone use.
 
-Termux is an optional development/runtime bridge for the first Android prototype. It may provide Python, Git, and llama.cpp without installing Ubuntu, Debian, proot, or another Linux distribution. The final Android experience must not require the user to operate a terminal.
+Termux is optional for development and diagnostics only. The production Android app is intended to package its local inference runtime through the Android NDK; normal use must not require Termux, a terminal, or a separately running localhost server. See `docs/ANDROID_INFERENCE.md`.
 
 ## Platform responsibilities
 
@@ -38,8 +38,9 @@ The core must not assume that it always runs in Termux, a browser, or a desktop 
 
 Local inference is the default and must work without API credits:
 - Keep llama.cpp as a supported inference backend.
-- On Android, evaluate a native llama.cpp/NDK integration against a local Termux llama-server process.
-- Prefer an in-process/native runtime for the polished Android release if memory, thermal behavior, model loading, and lifecycle tests support it.
+- The selected Android direction is an in-process llama.cpp/NDK runtime, isolated behind the platform-neutral inference contract.
+- Termux remains an optional development/debug adapter, not a production dependency.
+- The native runtime must pass memory, thermal, model-loading, cancellation, and lifecycle tests on the actual phone before chat is enabled.
 - Keep model selection and quantization configurable. On a 6 GB device, start with compact quantized models and conservative context sizes; do not promise a model will fit without measuring actual peak RAM.
 - Remote model providers remain explicit, optional adapters. No silent cloud fallback.
 
@@ -93,4 +94,4 @@ The fact that Lia is intended for one owner simplifies account and sharing desig
 
 ## Current status
 
-The target architecture is being implemented incrementally. A first Kotlin/Jetpack Compose Android shell exists under `apps/android`; its chat composer remains disabled until local inference is connected. The app now initializes an app-private SQLite database off the main thread, with separate conversation/message and explicit-memory tables, bounded CRUD/search operations, and automated Robolectric tests. CI builds a debug APK and runs the Android unit tests. This is still a foundation, not a usable assistant: Android Keystore integration, a native model runtime, the Python-core bridge, and a user-facing conversation/memory UI remain unfinished. Voice and pairing are not validated end-to-end on a physical Android device.
+The target architecture is being implemented incrementally. A first Kotlin/Jetpack Compose Android shell exists under `apps/android`; its chat composer remains disabled until local inference is connected. The app now initializes an app-private SQLite database off the main thread, with separate conversation/message and explicit-memory tables, bounded CRUD/search operations, and automated Robolectric tests. A `LiaRepository` interface and SQLite-backed adapter now separate the presentation layer from storage. CI builds a debug APK and runs the Android unit tests. This is still a foundation, not a usable assistant: Android Keystore integration, the native model runtime, the Python-core bridge, and a user-facing conversation/memory UI remain unfinished. The native inference implementation plan is tracked in `docs/ANDROID_INFERENCE.md`. Voice and pairing are not validated end-to-end on a physical Android device.
