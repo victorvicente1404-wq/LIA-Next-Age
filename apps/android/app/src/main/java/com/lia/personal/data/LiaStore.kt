@@ -172,7 +172,7 @@ class LiaStore(context: Context) : SQLiteOpenHelper(
             arrayOf(conversationId),
             null,
             null,
-            "created_at ASC",
+            "created_at DESC",
             safeLimit.toString(),
         ).use { cursor ->
             buildList {
@@ -187,7 +187,7 @@ class LiaStore(context: Context) : SQLiteOpenHelper(
                         ),
                     )
                 }
-            }
+            }.asReversed()
         }
     }
 
