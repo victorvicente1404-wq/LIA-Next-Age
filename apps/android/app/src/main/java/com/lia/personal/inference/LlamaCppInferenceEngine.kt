@@ -1,5 +1,7 @@
 package com.lia.personal.inference
 
+import android.app.ActivityManager
+import android.content.Context
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +22,8 @@ import kotlinx.coroutines.withContext
  * No network client, local HTTP server, Termux process, or external API is
  * used. Native source is pinned in CMakeLists.txt.
  */
-class LlamaCppInferenceEngine : LiaInferenceEngine {
+class LlamaCppInferenceEngine(context: Context) : LiaInferenceEngine {
+    private val appContext = context.applicationContext
     private val mutableStatus = MutableStateFlow<InferenceStatus>(InferenceStatus.Unavailable)
     override val status: StateFlow<InferenceStatus> = mutableStatus.asStateFlow()
     private val generationMutex = Mutex()
@@ -48,6 +51,13 @@ class LlamaCppInferenceEngine : LiaInferenceEngine {
             try {
                 val ready = withContext(Dispatchers.IO) {
                     require(modelFile.isFile && modelFile.canRead()) { "MODEL_FILE_UNAVAILABLE" }
+                    val activityManager = appContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                    val memoryInfo = ActivityManager.MemoryInfo()
+                    activityManager?.getMemoryInfo(memoryInfo)
+                    if (activityManager != null && memoryInfo.availMem < modelFile.length() + MIN_FREE_MEMORY_AFTER_LOAD) {
+                        mutableStatus.value = InferenceStatus.Failed("INSUFFICIENT_MEMORY")
+                        throw IllegalStateException("INSUFFICIENT_MEMORY")
+                    }
                     nativeLoadModel(modelFile.absolutePath, Runtime.getRuntime().availableProcessors())
                 }
                 if (!ready) {
@@ -123,5 +133,6 @@ class LlamaCppInferenceEngine : LiaInferenceEngine {
         private const val MAX_PROMPT_MESSAGES = 32
         private const val MAX_MESSAGE_CHARS = 32_000
         private const val MAX_GENERATION_TOKENS = 256
+        private const val MIN_FREE_MEMORY_AFTER_LOAD = 768L * 1024 * 1024
     }
 }
