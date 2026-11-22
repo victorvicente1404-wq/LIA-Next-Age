@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ipaddress
-import time
 from pathlib import Path
 from typing import Literal, Protocol
 from urllib.parse import urlsplit
