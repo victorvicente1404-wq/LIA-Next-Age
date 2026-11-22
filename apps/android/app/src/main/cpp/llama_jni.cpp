@@ -24,6 +24,7 @@ llama_batch g_batch{};
 int32_t g_position = 0;
 int32_t g_max_tokens = 0;
 int32_t g_generated = 0;
+bool g_batch_initialized = false;
 std::string g_utf8_pending;
 constexpr uint32_t CONTEXT_SIZE = 2048;
 constexpr int32_t BATCH_SIZE = 128;
@@ -33,9 +34,13 @@ void release_model_locked() {
         llama_sampler_free(g_sampler);
         g_sampler = nullptr;
     }
-    if (g_context) {
+    if (g_batch_initialized) {
         llama_batch_free(g_batch);
-        g_context ? llama_free(g_context) : void();
+        g_batch = {};
+        g_batch_initialized = false;
+    }
+    if (g_context) {
+        llama_free(g_context);
         g_context = nullptr;
     }
     if (g_model) {
@@ -78,7 +83,13 @@ bool valid_utf8(const std::string & value) {
 
 bool decode_prompt_tokens(const std::vector<llama_token> & tokens) {
     if (tokens.empty() || tokens.size() >= CONTEXT_SIZE - 8) return false;
+    if (g_batch_initialized) {
+        llama_batch_free(g_batch);
+        g_batch = {};
+        g_batch_initialized = false;
+    }
     g_batch = llama_batch_init(BATCH_SIZE, 0, 1);
+    g_batch_initialized = true;
     if (!g_batch.token || !g_batch.pos || !g_batch.n_seq_id || !g_batch.seq_id || !g_batch.logits) {
         return false;
     }
