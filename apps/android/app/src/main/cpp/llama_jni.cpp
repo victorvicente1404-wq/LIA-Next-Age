@@ -237,12 +237,13 @@ bool prepare_prompt(const std::vector<std::string> & roles,
     }
 
     const llama_vocab * vocab = llama_model_get_vocab(g_model);
-    // A rendered chat template already contains its own control tokens
-    // (and, when applicable, BOS). Parse those markers as special tokens
-    // without injecting a second BOS. The plain-text fallback has no
-    // template markers, so let the tokenizer add the model's BOS normally.
-    const bool add_special = !template_applied;
-    const bool parse_special = template_applied;
+    // llama.cpp's reference chat example tokenizes the first rendered
+    // conversation with add_special=true and parse_special=true. The chat
+    // template supplies message/control markers, but does not reliably
+    // include the model BOS token. Omitting BOS here can make an otherwise
+    // valid ChatML prompt behave like unrelated plain text.
+    const bool add_special = true;
+    const bool parse_special = true;
     int32_t count = llama_tokenize(vocab, prompt.data(),
         static_cast<int32_t>(prompt.size()), nullptr, 0, add_special, parse_special);
     if (count >= 0) return false;
