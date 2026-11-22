@@ -220,8 +220,12 @@ private fun LiaApp() {
                 }
                 inferenceEngine.generate(prompt, 160).collect { token ->
                     response.append(token)
-                    chatLines = chatLines.filterNot { it.first == "assistant" && it.second == "…" } +
-                        ("assistant" to response.toString())
+                    val lastLine = chatLines.lastOrNull()
+                    chatLines = if (lastLine?.first == "assistant") {
+                        chatLines.dropLast(1) + ("assistant" to response.toString())
+                    } else {
+                        chatLines + ("assistant" to response.toString())
+                    }
                 }
                 if (response.isNotBlank()) {
                     withContext(Dispatchers.IO) {
@@ -231,8 +235,7 @@ private fun LiaApp() {
                     chatLines = chatLines + ("assistant" to "Não consegui gerar uma resposta. Tente novamente ou escolha outro modelo.")
                 }
             } catch (_: Exception) {
-                chatLines = chatLines.filterNot { it.first == "assistant" && it.second == "…" } +
-                    ("assistant" to "Ocorreu um erro durante a geração local. Sua mensagem continua salva no histórico.")
+                chatLines = chatLines + ("assistant" to "Ocorreu um erro durante a geração local. Sua mensagem continua salva no histórico.")
             } finally {
                 sending = false
                 conversationCount = withContext(Dispatchers.IO) { repository.listConversations().size }
@@ -363,7 +366,7 @@ private fun LiaApp() {
                         }
                     }
                 }
-                if (sending && chatLines.none { it.first == "assistant" && it.second.isNotBlank() }) {
+                if (sending && chatLines.lastOrNull()?.first == "user") {
                     Text("Lia está pensando…", style = MaterialTheme.typography.bodySmall)
                 }
             }
