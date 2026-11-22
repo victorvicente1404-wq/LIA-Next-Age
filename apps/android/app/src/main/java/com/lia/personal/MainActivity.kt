@@ -71,8 +71,8 @@ private fun LiaApp() {
     var storageError by remember { mutableStateOf(false) }
     var conversationCount by remember { mutableIntStateOf(0) }
     var importingModel by remember { mutableStateOf(false) }
-    var modelStatus by remember { mutableStateOf("Nenhum modelo local importado.") }
-    var importedModel by remember { mutableStateOf<ImportedModel?>(null) }
+    var modelStatus by remember { mutableStateOf("Verificando modelos locais…") }
+    var importedModels by remember { mutableStateOf<List<ImportedModel>>(emptyList()) }
 
     val modelPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -82,15 +82,12 @@ private fun LiaApp() {
             modelStatus = "Importando modelo para o armazenamento privado…"
             scope.launch {
                 try {
-                    val result = withContext(Dispatchers.IO) {
+                    val catalog = withContext(Dispatchers.IO) {
                         modelStore.importModel(uri)
+                        modelStore.listImportedModels()
                     }
-                    importedModel = result
-                    modelStatus = if (result.alreadyPresent) {
-                        "Este modelo já estava importado: ${result.originalName}"
-                    } else {
-                        "Modelo importado e verificado: ${result.originalName}"
-                    }
+                    importedModels = catalog
+                    modelStatus = "Catálogo local atualizado. Arquivos importados não estão carregados no motor de IA."
                 } catch (error: ModelImportException) {
                     modelStatus = when (error.diagnosticCode) {
                         "MODEL_TOO_LARGE" -> "O modelo excede o limite de 3 GB."
@@ -113,16 +110,24 @@ private fun LiaApp() {
 
     LaunchedEffect(storage) {
         try {
-            conversationCount = withContext(Dispatchers.IO) {
+            val initialState = withContext(Dispatchers.IO) {
                 val conversations = repository.listConversations()
                 if (conversations.isEmpty()) {
                     repository.createConversation("Conversa inicial")
                 }
-                repository.listConversations().size
+                repository.listConversations().size to modelStore.listImportedModels()
+            }
+            conversationCount = initialState.first
+            importedModels = initialState.second
+            modelStatus = if (importedModels.isEmpty()) {
+                "Nenhum modelo local importado."
+            } else {
+                "${importedModels.size} modelo(s) encontrado(s) no armazenamento privado."
             }
             storageReady = true
         } catch (_: Exception) {
             storageError = true
+            modelStatus = "Não foi possível verificar o catálogo local de modelos."
         }
     }
     DisposableEffect(storage) {
@@ -190,13 +195,27 @@ private fun LiaApp() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            importedModel?.let { model ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "${model.sizeBytes / (1024 * 1024)} MB • SHA-256: ${model.sha256.take(16)}…",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            importedModels.forEach { model ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(model.originalName, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "${model.sizeBytes / (1024 * 1024)} MB • SHA-256: ${model.sha256.take(16)}…",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Importado; ainda não carregado no motor de IA.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(10.dp))
             Button(
