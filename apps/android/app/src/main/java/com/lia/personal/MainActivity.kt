@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,7 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.lia.personal.data.LiaStore
+import com.lia.personal.data.LiaStoreProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -50,21 +51,28 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun LiaApp() {
     val context = LocalContext.current
-    val store = remember { LiaStore(context) }
-    var draft by remember { mutableStateOf("") }
+    val storage = remember { LiaStoreProvider(context.applicationContext) }
+    val repository = storage.repository
     var storageReady by remember { mutableStateOf(false) }
     var storageError by remember { mutableStateOf(false) }
+    var conversationCount by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(store) {
+    LaunchedEffect(storage) {
         try {
-            withContext(Dispatchers.IO) { store.writableDatabase }
+            conversationCount = withContext(Dispatchers.IO) {
+                val conversations = repository.listConversations()
+                if (conversations.isEmpty()) {
+                    repository.createConversation("Conversa inicial")
+                }
+                repository.listConversations().size
+            }
             storageReady = true
         } catch (_: Exception) {
             storageError = true
         }
     }
-    DisposableEffect(store) {
-        onDispose { store.close() }
+    DisposableEffect(storage) {
+        onDispose { storage.close() }
     }
 
     Scaffold(
@@ -105,7 +113,15 @@ private fun LiaApp() {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "O histórico de conversas e as memórias explícitas terão armazenamento separado no próprio aparelho. A conversa será ativada quando o modelo local estiver conectado. Nenhuma mensagem será enviada para um serviço remoto.",
+                        text = if (storageReady) {
+                            "$conversationCount conversa(s) guardada(s) neste aparelho. " +
+                                "O histórico e as memórias explícitas usam o repositório local. " +
+                                "A conversa será ativada quando o modelo local estiver conectado."
+                        } else {
+                            "O histórico de conversas e as memórias explícitas ficam separados " +
+                                "no próprio aparelho. Nenhuma mensagem será enviada para um " +
+                                "serviço remoto."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -115,11 +131,11 @@ private fun LiaApp() {
             Spacer(modifier = Modifier.weight(1f))
 
             OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
+                value = "",
+                onValueChange = {},
                 modifier = Modifier.fillMaxWidth(),
                 enabled = false,
-                placeholder = { Text("A conversa será ativada em breve") },
+                placeholder = { Text("A conversa será ativada quando o modelo local estiver pronto") },
                 label = { Text("Mensagem") },
                 minLines = 1,
                 maxLines = 4,
