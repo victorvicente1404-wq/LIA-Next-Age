@@ -51,7 +51,8 @@ The first safe profile should use conservative context and generation limits, th
 - [x] Inspect and pin the upstream llama.cpp Android integration revision and its license.
 - [ ] Add the NDK/CMake native module and Kotlin JNI boundary.
 - [x] Add the initial GGUF import primitive, app-private copy, size/hash checks, and partial-file cleanup.
-- [ ] Connect the Storage Access Framework picker and model-management UI; parse complete GGUF metadata and validate runtime compatibility.
+- [x] Connect the Storage Access Framework picker and app-private model import flow in the Android UI.
+- [ ] Add a persistent model catalog, parse complete GGUF metadata, and validate runtime compatibility.
 - [ ] Add streaming generation and cancellation.
 - [ ] Add deterministic native smoke tests and CI packaging.
 - [ ] Benchmark on the actual Galaxy A37 before enabling chat by default.
@@ -60,7 +61,7 @@ The first safe profile should use conservative context and generation limits, th
 
 `LiaModelStore` now provides the first Android-side import primitive. It accepts a Storage Access Framework `Uri`, copies the selected file into app-private model storage, checks the GGUF magic header, enforces a configurable maximum file size (3 GiB by default), checks available storage while copying, computes SHA-256, uses a temporary file plus final rename, and removes partial files after failure. The display name is sanitized and never used as a path by itself. The importer does not retain the source URI or request broad storage permissions.
 
-This is intentionally only the import foundation: the current check does not yet parse the complete GGUF metadata or establish that a model architecture, tokenizer, quantization, and context configuration are supported. The SAF picker, model-management UI, full metadata inspection, and runtime compatibility checks remain to be connected before any imported file can be loaded. The UI must not label a file as ready merely because its header is valid.
+This is intentionally only the import foundation: the current check does not yet parse the complete GGUF metadata or establish that a model architecture, tokenizer, quantization, and context configuration are supported. The native Storage Access Framework picker is now connected to the import primitive. The current UI reports import success and a short SHA-256 fingerprint, but does not yet reload a model catalog after process restart. Full GGUF metadata inspection and runtime compatibility checks remain before any imported file can be loaded. The UI must not label a file as ready merely because its header is valid.
 
 ## Safety and privacy
 
