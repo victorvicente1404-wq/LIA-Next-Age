@@ -1,6 +1,8 @@
 package com.lia.personal.inference
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,5 +20,15 @@ class LiaModelStoreTest {
             .matches(Regex("[a-z0-9_-]+")))
         assertTrue(LiaModelStore.sanitizeName("...").isNotBlank())
         assertTrue(LiaModelStore.sanitizeName("A".repeat(200)).length <= 48)
+    }
+
+    @Test
+    fun recoversCatalogNameFromStoredFileName() {
+        assertEquals(
+            "meu-modelo-q4_k_m",
+            LiaModelStore.displayNameFromStoredFileName("0123456789abcdef-meu-modelo-q4_k_m.gguf"),
+        )
+        assertNull(LiaModelStore.displayNameFromStoredFileName("../model.gguf"))
+        assertNull(LiaModelStore.displayNameFromStoredFileName("not-a-hash-model.gguf"))
     }
 }
