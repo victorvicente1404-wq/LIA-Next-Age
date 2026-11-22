@@ -73,7 +73,7 @@ private fun LiaApp() {
             modelsDirectory = context.filesDir.resolve("models"),
         )
     }
-    val inferenceEngine: LiaInferenceEngine = remember { LlamaCppInferenceEngine() }
+    val inferenceEngine: LiaInferenceEngine = remember { LlamaCppInferenceEngine(context.applicationContext) }
     val inferenceStatus by inferenceEngine.status.collectAsState()
     val scope = rememberCoroutineScope()
 
@@ -97,6 +97,7 @@ private fun LiaApp() {
         is InferenceStatus.Ready -> "Motor llama.cpp pronto • ${state.modelName}"
         is InferenceStatus.Failed -> when (state.diagnosticCode) {
             "NATIVE_LIBRARY_UNAVAILABLE" -> "Biblioteca nativa indisponível nesta instalação."
+            "INSUFFICIENT_MEMORY" -> "Memória RAM livre insuficiente para carregar este modelo com segurança."
             else -> "Não foi possível iniciar o motor (${state.diagnosticCode})."
         }
     }
