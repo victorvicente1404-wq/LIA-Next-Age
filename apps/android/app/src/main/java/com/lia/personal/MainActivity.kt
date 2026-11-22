@@ -384,8 +384,14 @@ private fun LiaApp() {
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = { sendMessage() }, enabled = runtimeReady && !sending && draft.isNotBlank()) {
-                    Text(if (sending) "Gerando…" else "Enviar")
+                if (sending) {
+                    Button(onClick = { inferenceEngine.cancelGeneration() }, enabled = true) {
+                        Text("Parar")
+                    }
+                } else {
+                    Button(onClick = { sendMessage() }, enabled = runtimeReady && draft.isNotBlank()) {
+                        Text("Enviar")
+                    }
                 }
             }
         }
