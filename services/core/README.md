@@ -48,7 +48,7 @@ For the tested OpenJarvis checkout, pin commit `c5a7766e` when preserving Python
 ## API
 
 - `GET /health`: service and configured inference status.
-- `POST /api/v1/chat`: local chat completion; response includes engine name, `external_traffic: false`, and the number of memories used.
+- `POST /api/v1/chat`: local chat completion; response includes engine name, `external_traffic: false`, memories used, selected specialist profile, tool calls, and the bounded plan.
 - `POST /api/v1/memories`: save a fact, preference, knowledge item, or note.
 - `GET /api/v1/memories?q=...&kind=...`: search/list saved memories.
 - `DELETE /api/v1/memories/{id}`: delete one memory.
@@ -90,3 +90,19 @@ Development tasks are selected from a fixed catalog (Git status/diff, pytest, Ru
 pytest
 ruff check .
 ```
+
+## Lia-owned cognitive orchestration
+
+Chat with `use_tools=true` uses `LiaOrchestrator`, owned by the Lia application and independent of the inference backend. It runs a bounded JSON decision loop (up to four decision steps plus one final synthesis request) over the same local model adapter. Both the direct llama.cpp HTTP adapter and the optional OpenJarvis LlamaCppEngine adapter expose this orchestration contract.
+
+For multi-step requests, the model may return a bounded plan (one goal and up to six short steps). Plans are descriptive intent, never authorization; every execution still passes the same tool policy. The orchestration loop permits at most four decision steps and one final synthesis request.
+
+The current local read-only tool allowlist contains:
+- `calculator`: bounded arithmetic grammar, without `eval` or code execution.
+- `memory_search`: retrieval from memories explicitly saved by the user.
+
+Every proposed tool call is dispatched through Lia's fail-closed registry and policy. Unknown tools are denied. There is no shell, file write, Git mutation, web access, messaging, calendar, or home automation exposed to chat. Tool output is reintroduced as untrusted data. The loop is bounded and does not grant the model direct execution privileges.
+
+Set `use_tools=false` to use a plain local completion. No hosted provider is used as fallback. The UI displays the orchestration identifier and tool-call count returned by the API.
+
+This is the first cognitive orchestration milestone, with bounded structured plans and tool dispatch, not full autonomous task management. Persistent task plans, specialist agents, approval workflows for external actions, and recovery of interrupted jobs remain future work. Runtime behavior with the real GGUF and Android device still requires hands-on validation.

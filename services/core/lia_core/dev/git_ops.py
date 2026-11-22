@@ -4,7 +4,9 @@ import hashlib
 import os
 import re
 import shutil
+import stat
 import subprocess
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass
@@ -15,6 +17,7 @@ from lia_core.dev.workspaces import WorkspaceRegistry
 
 PROPOSAL_TTL_SECONDS = 300
 MAX_OUTPUT = 12000
+MAX_COMMIT_CONTENT_BYTES = 5_000_000
 PROTECTED_BRANCHES = {"main", "master"}
 SENSITIVE_PARTS = {".env", ".ssh", ".aws", ".azure", ".kube", ".docker"}
 SENSITIVE_SUFFIXES = {".pem", ".key", ".p12", ".pfx"}
@@ -50,36 +53,55 @@ class GitOperationManager:
         self._git = shutil.which("git")
 
     def _run(
-        self, root: Path, *arguments: str, check: bool = True
+        self,
+        root: Path,
+        *arguments: str,
+        check: bool = True,
+        env_overrides: dict[str, str] | None = None,
+        input_data: bytes | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if not self._git:
             raise GitOperationError("Git não está instalado neste ambiente.")
+        command_env = {
+            "PATH": os.environ.get("PATH", str(Path(self._git).parent)),
+            "HOME": str(Path.home()),
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_COUNT": "2",
+            "GIT_CONFIG_KEY_0": "core.hooksPath",
+            "GIT_CONFIG_VALUE_0": os.devnull,
+            "GIT_CONFIG_KEY_1": "commit.gpgsign",
+            "GIT_CONFIG_VALUE_1": "false",
+        }
+        if env_overrides:
+            command_env.update(env_overrides)
+        run_options: dict[str, Any] = {
+            "cwd": root,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "timeout": 20,
+            "shell": False,
+            "env": command_env,
+        }
+        if input_data is None:
+            run_options.update({
+                "stdin": subprocess.DEVNULL,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+            })
+        else:
+            run_options["input"] = input_data
         try:
-            result = subprocess.run(
-                [self._git, *arguments],
-                check=False,
-                cwd=root,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=20,
-                shell=False,
-                env={
-                    "PATH": os.environ.get("PATH", str(Path(self._git).parent)),
-                    "HOME": str(Path.home()),
-                    "GIT_TERMINAL_PROMPT": "0",
-                    "GIT_CONFIG_NOSYSTEM": "1",
-                    "GIT_CONFIG_COUNT": "1",
-                    "GIT_CONFIG_KEY_0": "core.hooksPath",
-                    "GIT_CONFIG_VALUE_0": os.devnull,
-                },
-            )
+            result = subprocess.run([self._git, *arguments], check=False, **run_options)
         except subprocess.TimeoutExpired as exc:
             raise GitOperationError("A operação Git excedeu 20 segundos.") from exc
-        output = result.stdout[-MAX_OUTPUT:]
+        raw_output = result.stdout
+        output = (
+            raw_output.decode("utf-8", errors="replace")[-MAX_OUTPUT:]
+            if isinstance(raw_output, bytes)
+            else raw_output[-MAX_OUTPUT:]
+        )
         if check and result.returncode:
             raise GitOperationError(output.strip() or "O Git recusou a operação.")
         return subprocess.CompletedProcess(result.args, result.returncode, output)
@@ -101,6 +123,99 @@ class GitOperationManager:
     @staticmethod
     def _fingerprint(value: str) -> str:
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    def _stage_commit_snapshot(
+        self, root: Path, paths: list[str], head: str
+    ) -> tuple[str, str]:
+        """Build an isolated index from exact file bytes, without running clean filters."""
+        self._validate_paths(root, paths)
+        total_size = 0
+        with tempfile.TemporaryDirectory(prefix="lia-git-index-") as temporary:
+            index_env = {"GIT_INDEX_FILE": str(Path(temporary) / "index")}
+            self._run(root, "read-tree", head, env_overrides=index_env)
+            digest = hashlib.sha256()
+            for relative in sorted(paths):
+                parts = Path(relative).parts
+                flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                directory_fd: int | None = None
+                try:
+                    if os.open in os.supports_dir_fd:
+                        directory_flags = (
+                            os.O_RDONLY
+                            | getattr(os, "O_DIRECTORY", 0)
+                            | getattr(os, "O_NOFOLLOW", 0)
+                        )
+                        directory_fd = os.open(root, directory_flags)
+                        for part in parts[:-1]:
+                            next_fd = os.open(
+                                part,
+                                directory_flags,
+                                dir_fd=directory_fd,
+                            )
+                            os.close(directory_fd)
+                            directory_fd = next_fd
+                        descriptor = os.open(
+                            parts[-1], flags, dir_fd=directory_fd
+                        )
+                    else:
+                        path = root.joinpath(*parts)
+                        if path.is_symlink() or not path.resolve().is_relative_to(root):
+                            raise OSError("Caminho fora do workspace.")
+                        descriptor = os.open(path, flags)
+                except OSError as exc:
+                    raise GitOperationError(
+                        "Um arquivo selecionado não pôde ser aberto com segurança."
+                    ) from exc
+                finally:
+                    if directory_fd is not None:
+                        os.close(directory_fd)
+                try:
+                    file_stat = os.fstat(descriptor)
+                    if not stat.S_ISREG(file_stat.st_mode):
+                        raise GitOperationError(
+                            "Somente arquivos regulares podem entrar em commits."
+                        )
+                    if total_size + file_stat.st_size > MAX_COMMIT_CONTENT_BYTES:
+                        raise GitOperationError(
+                            "O conteúdo selecionado excede o limite de 5 MB para revisão segura."
+                        )
+                    content = bytearray()
+                    with os.fdopen(descriptor, "rb", closefd=False) as stream:
+                        while chunk := stream.read(64 * 1024):
+                            content.extend(chunk)
+                    total_size += len(content)
+                    if total_size > MAX_COMMIT_CONTENT_BYTES:
+                        raise GitOperationError(
+                            "O conteúdo selecionado excede o limite de 5 MB para revisão segura."
+                        )
+                    if len(content) != file_stat.st_size:
+                        raise GitOperationError(
+                            "Um arquivo mudou enquanto seu snapshot era calculado."
+                        )
+                    mode = "100755" if file_stat.st_mode & stat.S_IXUSR else "100644"
+                    object_id = self._run(
+                        root, "hash-object", "-w", "--no-filters", "--stdin",
+                        input_data=bytes(content),
+                    ).stdout.strip()
+                    if not re.fullmatch(r"[0-9a-f]{40,64}", object_id):
+                        raise GitOperationError("O Git não produziu um objeto de arquivo válido.")
+                    self._run(
+                        root, "update-index", "--add", "--cacheinfo",
+                        mode, object_id, relative,
+                        env_overrides=index_env,
+                    )
+                    digest.update(relative.encode("utf-8"))
+                    digest.update(b"\0")
+                    digest.update(mode.encode("ascii"))
+                    digest.update(b"\0")
+                    digest.update(object_id.encode("ascii"))
+                    digest.update(b"\0")
+                finally:
+                    os.close(descriptor)
+            tree = self._run(root, "write-tree", env_overrides=index_env).stdout.strip()
+            if not re.fullmatch(r"[0-9a-f]{40,64}", tree):
+                raise GitOperationError("O Git não produziu uma árvore válida para o commit.")
+            return digest.hexdigest(), tree
 
     def _purge(self) -> None:
         now = time.monotonic()
@@ -131,17 +246,29 @@ class GitOperationManager:
             path = Path(raw)
             if path.is_absolute() or not raw.strip() or path.as_posix() in {"", ".", ".."} or any(part in {"", ".", ".."} for part in path.parts):
                 raise GitOperationError("Caminho de arquivo inválido.")
-            if any(char in raw for char in "*?[]:") or "\\\\" in raw:
+            if any(char in raw for char in "*?[]:") or "\\" in raw:
                 raise GitOperationError("Use caminhos literais, sem padrões ou pathspecs Git.")
-            if any(part.lower() in SENSITIVE_PARTS for part in path.parts):
-                raise GitOperationError("Arquivos de diretórios sensíveis não podem entrar em commits.")
-            if path.name.lower() in {".env", "id_rsa", "id_ed25519", "credentials.json", "secrets.json"}:
+            if any(part.startswith("-") for part in path.parts):
+                raise GitOperationError("Caminhos iniciados por hífen não são permitidos para commits.")
+            if any(
+                part.lower() in SENSITIVE_PARTS
+                or (part.lower().startswith(".env") and part.lower() != ".env.example")
+                for part in path.parts
+            ):
+                raise GitOperationError("Arquivos de ambiente ou diretórios sensíveis não podem entrar em commits.")
+            if path.name.lower() in {"id_rsa", "id_ed25519", "credentials.json", "secrets.json"}:
                 raise GitOperationError("Arquivo sensível bloqueado para commit.")
             if path.suffix.lower() in SENSITIVE_SUFFIXES:
                 raise GitOperationError("Arquivo de chave/certificado bloqueado para commit.")
             absolute = root / path
-            if absolute.is_symlink() or not absolute.resolve().is_relative_to(root):
-                raise GitOperationError("Caminho simbólico ou fora do workspace bloqueado.")
+            if (
+                absolute.is_symlink()
+                or not absolute.is_file()
+                or not absolute.resolve().is_relative_to(root)
+            ):
+                raise GitOperationError(
+                    "Somente arquivos regulares dentro do workspace podem entrar em commits."
+                )
             normalized.append(path.as_posix())
         if len(set(normalized)) != len(normalized):
             raise GitOperationError("A lista contém caminhos duplicados.")
@@ -213,10 +340,14 @@ class GitOperationManager:
                 tracked = self._run(root, "ls-files", "--error-unmatch", "--", path, check=False)
                 if tracked.returncode != 0:
                     raise GitOperationError(f"'{path}' não é um arquivo já rastreado pelo Git.")
-            diff = self._run(root, "diff", "HEAD", "--binary", "--", *paths, check=False).stdout
-            if not diff.strip():
+            diff_status = self._run(
+                root, "diff", "--quiet", "HEAD", "--", *paths, check=False
+            )
+            if diff_status.returncode == 0:
                 raise GitOperationError("Os arquivos selecionados não têm alterações para commit.")
-            fingerprint = self._fingerprint(diff)
+            if diff_status.returncode != 1:
+                raise GitOperationError("Não foi possível inspecionar os arquivos selecionados.")
+            fingerprint, _ = self._stage_commit_snapshot(root, paths, head)
             normalized = {"message": message, "paths": paths}
             preview = (
                 f"Commit na branch '{branch}'\nMensagem: {message}\n"
@@ -279,12 +410,23 @@ class GitOperationManager:
             raise GitOperationError("O workspace deixou de estar limpo. Operação cancelada.")
         if proposal.action == "commit":
             paths = proposal.parameters["paths"]
-            current_diff = self._run(root, "diff", "HEAD", "--binary", "--", *paths).stdout
-            if self._fingerprint(current_diff) != proposal.fingerprint:
-                raise GitOperationError("Os arquivos mudaram desde a revisão. Gere um novo commit proposto.")
-            result = self._run(
-                root, "commit", "--only", "-m", proposal.parameters["message"], "--", *paths
+            current_fingerprint, tree = self._stage_commit_snapshot(
+                root, paths, head
             )
+            if current_fingerprint != proposal.fingerprint:
+                raise GitOperationError("Os arquivos mudaram desde a revisão. Gere um novo commit proposto.")
+            commit_sha = self._run(
+                root, "commit-tree", tree, "-p", head,
+                "-m", proposal.parameters["message"],
+            ).stdout.strip()
+            if not re.fullmatch(r"[0-9a-f]{40,64}", commit_sha):
+                raise GitOperationError("O Git não produziu um commit válido.")
+            result = self._run(
+                root, "update-ref",
+                f"refs/heads/{proposal.branch}", commit_sha, head,
+            )
+            # Synchronize only committed paths; unrelated staged changes remain untouched.
+            self._run(root, "reset", "-q", "HEAD", "--", *paths)
         elif proposal.action == "create_branch":
             result = self._run(root, "switch", "-c", proposal.parameters["branch"])
         elif proposal.action == "checkout":
@@ -301,7 +443,10 @@ class GitOperationManager:
         return {
             "action": proposal.action,
             "success": True,
-            "output": result.stdout[-MAX_OUTPUT:],
+            "output": (
+                f"Commit criado: {commit_sha}" if proposal.action == "commit"
+                else result.stdout[-MAX_OUTPUT:]
+            ),
             "branch": new_branch,
             "head": new_head,
             "clean": not bool(new_status.strip()),

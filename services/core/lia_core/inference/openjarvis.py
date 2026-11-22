@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from lia_core.config import Settings
 from lia_core.inference.llamacpp import LocalModelError
+from lia_core.memory.store import MemoryStore
 
 
 class OpenJarvisInferenceClient:
-    """Use OpenJarvis's LlamaCppEngine while keeping the model endpoint local."""
+    """Use OpenJarvis as an optional local inference engine for Lia orchestration."""
 
     engine_name = "OpenJarvis / llama.cpp"
+    agent_name = "OpenJarvis Orchestrator"
 
     def __init__(self, settings: Settings) -> None:
         from openjarvis.core.types import Message, Role
@@ -18,6 +21,7 @@ class OpenJarvisInferenceClient:
         self._message_type = Message
         self._role_type = Role
         self.model = settings.llm_model
+        self._temperature = settings.temperature if hasattr(settings, "temperature") else 0.7
         host = settings.llm_base_url.removesuffix("/v1").rstrip("/")
         self._engine = LlamaCppEngine(
             host=host,
@@ -49,3 +53,20 @@ class OpenJarvisInferenceClient:
         if not isinstance(content, str) or not content.strip():
             raise LocalModelError("OpenJarvis returned an empty local response")
         return content.strip()
+
+
+    async def complete_with_agent(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+        memory: MemoryStore,
+    ) -> dict[str, Any]:
+        from lia_core.agents.orchestrator import LiaOrchestrator
+
+        try:
+            return await LiaOrchestrator(self.complete, memory).run(
+                messages, temperature=temperature, max_tokens=max_tokens
+            )
+        except Exception as exc:
+            raise LocalModelError("Lia local orchestration failed") from exc
