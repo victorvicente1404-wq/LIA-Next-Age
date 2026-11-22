@@ -63,6 +63,12 @@ class PairingStore:
                     expires_at INTEGER NOT NULL,
                     PRIMARY KEY (device_id, nonce)
                 );
+                CREATE TABLE IF NOT EXISTS pairing_request_rate_limits (
+                    client_hash TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_pairing_rate_limits_client_time
+                    ON pairing_request_rate_limits(client_hash, created_at);
                 """
             )
 
@@ -91,6 +97,37 @@ class PairingStore:
         if not normalized or not set(normalized).issubset(ALLOWED_DEVICE_SCOPES):
             raise PairingError("Escopos permitidos: chat, voice e memory:read (opcional).")
         return normalized
+
+    def allow_pairing_request(
+        self, client_address: str, limit: int = 5, window_seconds: int = 60
+    ) -> bool:
+        """Atomically enforce a shared per-client request window across workers."""
+        if not client_address or not 1 <= limit <= 100 or not 1 <= window_seconds <= 3600:
+            return False
+        now = int(time.time())
+        client_hash = self._hash(client_address)
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM pairing_request_rate_limits WHERE created_at < ?",
+                (now - window_seconds,),
+            )
+            count = connection.execute(
+                """
+                SELECT COUNT(*) FROM pairing_request_rate_limits
+                WHERE client_hash = ? AND created_at > ?
+                """,
+                (client_hash, now - window_seconds),
+            ).fetchone()[0]
+            if count >= limit:
+                connection.rollback()
+                return False
+            connection.execute(
+                "INSERT INTO pairing_request_rate_limits (client_hash, created_at) VALUES (?, ?)",
+                (client_hash, now),
+            )
+            connection.commit()
+            return True
 
     def create_request(
         self, device_name: str, scopes: list[str]
