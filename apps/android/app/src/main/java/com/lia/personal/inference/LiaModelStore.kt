@@ -83,8 +83,14 @@ class LiaModelStore(
             val safeName = sanitizeName(displayName)
             val destination = File(modelsDirectory, "${sha256.take(16)}-$safeName.gguf")
             if (destination.exists()) {
-                temporary.delete()
-                return ImportedModel(destination, displayName, copied, sha256, alreadyPresent = true)
+                val existing = inspectStoredModel(destination)
+                if (existing != null) {
+                    temporary.delete()
+                    return existing.copy(alreadyPresent = true)
+                }
+                if (!destination.delete()) {
+                    throw ModelImportException("FINALIZE_FAILED")
+                }
             }
             if (!temporary.renameTo(destination)) {
                 throw ModelImportException("FINALIZE_FAILED")
