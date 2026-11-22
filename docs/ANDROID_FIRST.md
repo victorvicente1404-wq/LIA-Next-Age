@@ -93,4 +93,4 @@ The fact that Lia is intended for one owner simplifies account and sharing desig
 
 ## Current status
 
-This is the target architecture, not a claim that a native Android app already exists. The current repository contains a Python core and a responsive web client. It has no native Android application module yet, and the current voice and pairing implementations have not been validated end-to-end on a physical Android device.
+The target architecture is being implemented incrementally. A first Kotlin/Jetpack Compose Android shell now exists under `apps/android`, with a launcher screen and an intentionally disabled chat composer until local runtime and storage are connected. CI is being extended to build a debug APK. The shell is not yet a usable assistant: it has no Android Keystore integration, native model runtime, local data repositories, or connection to the Python core. Voice and pairing also remain unvalidated end-to-end on a physical Android device.
