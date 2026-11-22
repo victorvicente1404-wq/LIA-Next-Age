@@ -172,7 +172,7 @@ class LiaStore(context: Context) : SQLiteOpenHelper(
             arrayOf(conversationId),
             null,
             null,
-            "created_at DESC",
+            "created_at DESC, rowid DESC",
             safeLimit.toString(),
         ).use { cursor ->
             buildList {
