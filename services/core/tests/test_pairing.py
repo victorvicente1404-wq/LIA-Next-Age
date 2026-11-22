@@ -47,6 +47,21 @@ def test_pairing_store_approves_once_persists_hash_and_revokes(tmp_path: Path):
     assert reopened.revoke(approved["device_id"]) is False
 
 
+def test_pairing_rate_limit_is_shared_between_store_instances(tmp_path: Path):
+    database = tmp_path / "pairing.sqlite3"
+    first_worker = PairingStore(database)
+    second_worker = PairingStore(database)
+
+    assert first_worker.allow_pairing_request("192.0.2.10", limit=2) is True
+    assert second_worker.allow_pairing_request("192.0.2.10", limit=2) is True
+    assert first_worker.allow_pairing_request("192.0.2.10", limit=2) is False
+
+    restarted_worker = PairingStore(database)
+    assert restarted_worker.allow_pairing_request("192.0.2.10", limit=2) is False
+    assert restarted_worker.allow_pairing_request("192.0.2.11", limit=2) is True
+    assert b"192.0.2.10" not in database.read_bytes()
+
+
 def test_pairing_request_status_tracks_approval_and_revocation(tmp_path: Path):
     store = PairingStore(tmp_path / "pairing.sqlite3")
     request = store.create_request("Celular", ["chat"])
