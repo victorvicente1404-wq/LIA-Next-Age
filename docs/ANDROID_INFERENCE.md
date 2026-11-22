@@ -17,9 +17,9 @@ The initial backend candidate is llama.cpp with GGUF models. The Android integra
 
 The official Android binding was inspected at llama.cpp commit `cbb1c1c50bba81929387dea473873d1df87a6212` (2026-11-21). Its project license is MIT; retain the upstream copyright and license notice if any source is copied or redistributed.
 
-The sample provides a Kotlin `InferenceEngine` API, token streaming, GGUF metadata reader, and JNI/C++ implementation. However, its current Android library sample declares `minSdk = 33`, `ndkVersion = 29.0.13113456`, and CMake 3.31.6, while Lia currently targets `minSdk = 26` and a lower compile SDK. It is therefore not safe to add the sample as a drop-in dependency without an explicit compatibility decision and CI toolchain update. The sample also contains an app-specific singleton/lifecycle design that should not be adopted unchanged.
+The sample provides a Kotlin `InferenceEngine` API, token streaming, GGUF metadata reader, and JNI/C++ implementation. Its Android library sample declares `minSdk = 33`, `ndkVersion = 29.0.13113456`, and CMake 3.31.6, so Lia does not consume it as a drop-in dependency. Instead, Lia now builds a smaller JNI adapter against the pinned upstream source and keeps `minSdk = 26`.
 
-Lia now defines its own Kotlin boundary in `apps/android/.../inference/LiaInferenceEngine.kt`. The planned adapter will own native model lifecycle and streaming, while Lia retains control of conversation context, persistence, cancellation, and policy. Before implementation, choose whether to raise the minimum Android version or build a smaller JNI adapter against a pinned llama.cpp source revision; do not silently change supported Android versions.
+Lia's own Kotlin boundary remains `LiaInferenceEngine`. `LlamaCppInferenceEngine` owns model load/unload, prompt submission, token streaming through Kotlin Flow, and cancellation. The UI and repository still communicate only through that interface; JNI never receives database access or Android tools.
 
 ## Runtime boundaries
 
@@ -49,13 +49,13 @@ The first safe profile should use conservative context and generation limits, th
 - [x] Choose Android-native NDK packaging over a mandatory Termux server.
 - [x] Define the separation between UI, repository, inference adapter, and policy/orchestrator.
 - [x] Inspect and pin the upstream llama.cpp Android integration revision and its license.
-- [ ] Add the NDK/CMake native module and Kotlin JNI boundary.
+- [x] Add the NDK/CMake native module and Kotlin JNI boundary, pinned to llama.cpp commit `cbb1c1c50bba81929387dea473873d1df87a6212`.
 - [x] Add the initial GGUF import primitive, app-private copy, size/hash checks, and partial-file cleanup.
 - [x] Connect the Storage Access Framework picker and app-private model import flow in the Android UI.
 - [x] Add a persistent model catalog reconstructed from app-private GGUF files, with header and SHA-256 filename verification.
 - [ ] Parse complete GGUF metadata and validate runtime compatibility.
-- [ ] Add streaming generation and cancellation.
-- [ ] Add deterministic native smoke tests and CI packaging.
+- [x] Add token-by-token generation and cancellation through Kotlin Flow.
+- [ ] Add deterministic native smoke tests; CI now installs the pinned NDK/CMake toolchain and builds the debug APK.
 - [ ] Benchmark on the actual Galaxy A37 before enabling chat by default.
 
 ## Model import implementation status
@@ -78,3 +78,14 @@ This is intentionally only the import foundation: the current check does not yet
 - llama.cpp Android integration: https://github.com/ggml-org/llama.cpp/tree/master/examples/llama.android
 - llama.cpp Android build guidance: https://github.com/ggml-org/llama.cpp/blob/master/docs/android.md
 - llama.cpp portable Android NDK build options: https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md
+
+
+## Embedded runtime implementation
+
+The Android app now includes `apps/android/app/src/main/cpp` with a CMake target that fetches the exact llama.cpp commit above during the build (never at app runtime). The JNI bridge is CPU-only for the first integration, targets `arm64-v8a`, disables OpenMP/llamafile/host-native tuning, and links the upstream `llama` target into the APK. The app remains `minSdk = 26`; the CI workflow installs NDK `27.2.12479018` and CMake `3.31.6`.
+
+The first runtime profile is deliberately conservative: one model at a time, 2048-token context, 128-token decode batches, at most 256 generated tokens per request, greedy sampling, and at most four CPU threads. The engine checks that the model loads as a decoder model; llama.cpp performs the actual GGUF parsing and architecture/model loading validation. This is not yet a complete independent GGUF metadata inspector, and unsupported or malformed models may fail at load time. No model is downloaded automatically.
+
+The Android chat screen now offers an explicit **Carregar** action for an imported model. Only after the native model loads successfully is the message field enabled. Conversation messages are stored in Lia's private SQLite repository; generated tokens are streamed to the UI and the completed assistant response is persisted. There is no remote fallback.
+
+This is an initial integration, not yet a device-validated release. Before calling it production-ready, CI must pass the native build, then the APK must be installed and tested on the actual Galaxy A37. In particular, measure cold-load time, peak native memory, sustained tokens/s, thermal behavior, and cancellation. The current fixed context and CPU-only backend are conservative defaults, not a performance claim.
