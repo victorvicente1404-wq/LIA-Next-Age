@@ -43,6 +43,7 @@ class LlamaCppInferenceEngine : LiaInferenceEngine {
 
     override suspend fun loadModel(modelFile: File) {
         generationMutex.withLock {
+            loaded.set(false)
             mutableStatus.value = InferenceStatus.Loading
             try {
                 val ready = withContext(Dispatchers.IO) {
