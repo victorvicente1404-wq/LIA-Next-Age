@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -25,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lia.personal.data.LiaStoreProvider
 import com.lia.personal.inference.ImportedModel
+import com.lia.personal.inference.InferenceStatus
+import com.lia.personal.inference.LiaInferenceEngine
 import com.lia.personal.inference.LiaModelStore
+import com.lia.personal.inference.LiaPromptMessage
+import com.lia.personal.inference.LlamaCppInferenceEngine
 import com.lia.personal.inference.ModelImportException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -66,13 +73,33 @@ private fun LiaApp() {
             modelsDirectory = context.filesDir.resolve("models"),
         )
     }
+    val inferenceEngine: LiaInferenceEngine = remember { LlamaCppInferenceEngine() }
+    val inferenceStatus by inferenceEngine.status.collectAsState()
     val scope = rememberCoroutineScope()
+
     var storageReady by remember { mutableStateOf(false) }
     var storageError by remember { mutableStateOf(false) }
     var conversationCount by remember { mutableIntStateOf(0) }
+    var conversationId by remember { mutableStateOf<String?>(null) }
     var importingModel by remember { mutableStateOf(false) }
+    var loadingModel by remember { mutableStateOf(false) }
     var modelStatus by remember { mutableStateOf("Verificando modelos locais…") }
     var importedModels by remember { mutableStateOf<List<ImportedModel>>(emptyList()) }
+    var draft by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    var chatLines by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+
+    val runtimeReady = inferenceStatus is InferenceStatus.Ready
+    val runtimeLabel = when (val state = inferenceStatus) {
+        InferenceStatus.Unavailable -> "Motor local aguardando um modelo."
+        InferenceStatus.Loading -> "Carregando modelo no processador…"
+        InferenceStatus.Generating -> "Lia está pensando…"
+        is InferenceStatus.Ready -> "Motor llama.cpp pronto • ${state.modelName}"
+        is InferenceStatus.Failed -> when (state.diagnosticCode) {
+            "NATIVE_LIBRARY_UNAVAILABLE" -> "Biblioteca nativa indisponível nesta instalação."
+            else -> "Não foi possível iniciar o motor (${state.diagnosticCode})."
+        }
+    }
 
     val modelPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -87,7 +114,7 @@ private fun LiaApp() {
                         modelStore.listImportedModels()
                     }
                     importedModels = catalog
-                    modelStatus = "Catálogo local atualizado. Arquivos importados não estão carregados no motor de IA."
+                    modelStatus = "Catálogo local atualizado. Selecione Carregar para iniciar o motor."
                 } catch (error: ModelImportException) {
                     modelStatus = when (error.diagnosticCode) {
                         "MODEL_TOO_LARGE" -> "O modelo excede o limite de 3 GB."
@@ -112,12 +139,16 @@ private fun LiaApp() {
         try {
             val initialState = withContext(Dispatchers.IO) {
                 val conversations = repository.listConversations()
-                if (conversations.isEmpty()) {
-                    repository.createConversation("Conversa inicial")
-                }
-                repository.listConversations().size to modelStore.listImportedModels()
+                val active = conversations.firstOrNull() ?: repository.createConversation("Conversa inicial")
+                Triple(
+                    active.id,
+                    repository.listConversations().size,
+                    repository.getMessages(active.id, 100).map { it.role to it.content },
+                ) to modelStore.listImportedModels()
             }
-            conversationCount = initialState.first
+            conversationId = initialState.first.first
+            conversationCount = initialState.first.second
+            chatLines = initialState.first.third
             importedModels = initialState.second
             modelStatus = if (importedModels.isEmpty()) {
                 "Nenhum modelo local importado."
@@ -130,8 +161,82 @@ private fun LiaApp() {
             modelStatus = "Não foi possível verificar o catálogo local de modelos."
         }
     }
-    DisposableEffect(storage) {
-        onDispose { storage.close() }
+
+    DisposableEffect(storage, inferenceEngine) {
+        onDispose {
+            inferenceEngine.cancelGeneration()
+            storage.close()
+        }
+    }
+
+    fun loadModel(model: ImportedModel) {
+        scope.launch {
+            loadingModel = true
+            modelStatus = "Preparando o modelo para execução local…"
+            try {
+                inferenceEngine.loadModel(model.file)
+                modelStatus = "Modelo carregado. A conversa local está habilitada."
+            } catch (_: Exception) {
+                modelStatus = "Falha ao carregar o modelo. Confira se ele é compatível e cabe na memória disponível."
+            } finally {
+                loadingModel = false
+            }
+        }
+    }
+
+    fun sendMessage() {
+        val clean = draft.trim()
+        val activeId = conversationId
+        if (clean.isEmpty() || activeId == null || !runtimeReady || sending) return
+
+        draft = ""
+        sending = true
+        chatLines = chatLines + ("user" to clean)
+        scope.launch {
+            val response = StringBuilder()
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.appendMessage(activeId, "user", clean)
+                }
+                val history = withContext(Dispatchers.IO) {
+                    repository.getMessages(activeId, 24)
+                }
+                val prompt = buildList {
+                    add(
+                        LiaPromptMessage(
+                            LiaPromptMessage.Role.SYSTEM,
+                            "Você é Lia, uma assistente pessoal útil, cuidadosa e direta. Responda em português brasileiro quando o usuário falar português. Seja honesta sobre limites e não afirme ter executado ações que não executou.",
+                        ),
+                    )
+                    history.forEach { message ->
+                        val role = when (message.role) {
+                            "system" -> LiaPromptMessage.Role.SYSTEM
+                            "assistant" -> LiaPromptMessage.Role.ASSISTANT
+                            else -> LiaPromptMessage.Role.USER
+                        }
+                        add(LiaPromptMessage(role, message.content))
+                    }
+                }
+                inferenceEngine.generate(prompt, 160).collect { token ->
+                    response.append(token)
+                    chatLines = chatLines.filterNot { it.first == "assistant" && it.second == "…" } +
+                        ("assistant" to response.toString())
+                }
+                if (response.isNotBlank()) {
+                    withContext(Dispatchers.IO) {
+                        repository.appendMessage(activeId, "assistant", response.toString())
+                    }
+                } else {
+                    chatLines = chatLines + ("assistant" to "Não consegui gerar uma resposta. Tente novamente ou escolha outro modelo.")
+                }
+            } catch (_: Exception) {
+                chatLines = chatLines.filterNot { it.first == "assistant" && it.second == "…" } +
+                    ("assistant" to "Ocorreu um erro durante a geração local. Sua mensagem continua salva no histórico.")
+            } finally {
+                sending = false
+                conversationCount = withContext(Dispatchers.IO) { repository.listConversations().size }
+            }
+        }
     }
 
     Scaffold(
@@ -154,14 +259,14 @@ private fun LiaApp() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(contentPadding)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 color = MaterialTheme.colorScheme.surfaceContainer,
             ) {
-                Column(modifier = Modifier.padding(18.dp)) {
+                Column(modifier = Modifier.padding(14.dp)) {
                     Text(
                         text = when {
                             storageReady -> "Armazenamento local preparado"
@@ -170,87 +275,117 @@ private fun LiaApp() {
                         },
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Text(
                         text = if (storageReady) {
-                            "$conversationCount conversa(s) guardada(s) neste aparelho. " +
-                                "O histórico e as memórias explícitas usam o repositório local. " +
-                                "Nenhuma mensagem é enviada para um serviço remoto."
+                            "$conversationCount conversa(s) guardada(s) neste aparelho. Histórico e memórias explícitas ficam no armazenamento privado. Nenhuma mensagem é enviada para um serviço remoto."
                         } else {
-                            "O histórico de conversas e as memórias explícitas ficam separados " +
-                                "no próprio aparelho. Nenhuma mensagem será enviada para um " +
-                                "serviço remoto."
+                            "Histórico de conversas e memórias explícitas ficam separados no próprio aparelho."
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
-            Text("Modelo de IA", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Motor local", style = MaterialTheme.typography.titleMedium)
+            Text(runtimeLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                modelStatus,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text(modelStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
             importedModels.forEach { model ->
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(model.originalName, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "${model.sizeBytes / (1024 * 1024)} MB • SHA-256: ${model.sha256.take(16)}…",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            "Importado; ainda não carregado no motor de IA.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(model.originalName, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                "${model.sizeBytes / (1024 * 1024)} MB • SHA-256: ${model.sha256.take(12)}…",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Button(onClick = { loadModel(model) }, enabled = !loadingModel) {
+                            Text(if (loadingModel) "Carregando…" else "Carregar")
+                        }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Button(
                 onClick = { modelPicker.launch(arrayOf("application/octet-stream", "application/*", "*/*")) },
-                enabled = !importingModel,
+                enabled = !importingModel && !loadingModel,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (importingModel) "Importando…" else "Selecionar modelo GGUF")
+                Text(if (importingModel) "Importando…" else "Importar modelo GGUF")
             }
-            Text(
-                "A importação apenas guarda e verifica o arquivo. O motor de IA ainda precisa ser conectado antes de conversar.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Conversa", style = MaterialTheme.typography.titleMedium)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (chatLines.isEmpty()) {
+                    Text(
+                        "Importe um modelo GGUF compatível, carregue-o e comece a conversar. A primeira carga pode levar algum tempo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                chatLines.forEach { (role, content) ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (role == "user") MaterialTheme.colorScheme.secondaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLow,
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                if (role == "user") "Você" else "Lia",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(content, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+                if (sending && chatLines.none { it.first == "assistant" && it.second.isNotBlank() }) {
+                    Text("Lia está pensando…", style = MaterialTheme.typography.bodySmall)
+                }
+            }
 
+            Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
-                value = "",
-                onValueChange = {},
+                value = draft,
+                onValueChange = { draft = it.take(32_000) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = false,
-                placeholder = { Text("A conversa será ativada quando o modelo local estiver pronto") },
+                enabled = runtimeReady && !sending,
+                placeholder = { Text(if (runtimeReady) "Escreva uma mensagem" else "Carregue um modelo para conversar") },
                 label = { Text("Mensagem") },
                 minLines = 1,
                 maxLines = 4,
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = {}, enabled = false) {
-                    Text("Enviar")
+                Button(onClick = { sendMessage() }, enabled = runtimeReady && !sending && draft.isNotBlank()) {
+                    Text(if (sending) "Gerando…" else "Enviar")
                 }
             }
         }
