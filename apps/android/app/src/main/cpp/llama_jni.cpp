@@ -121,6 +121,7 @@ jstring utf8_to_jstring(JNIEnv * env, const std::string & value) {
             utf16.push_back(static_cast<jchar>(0xDC00 + (codepoint & 0x3FF)));
         }
     }
+    if (utf16.empty()) { const jchar empty = 0; return env->NewString(&empty, 0); }
     return env->NewString(utf16.data(), static_cast<jsize>(utf16.size()));
 }
 
@@ -334,7 +335,8 @@ Java_com_lia_personal_inference_LlamaCppInferenceEngine_nativeNextToken(
     g_batch.logits[0] = 1;
     if (llama_decode(g_context, g_batch) != 0) return nullptr;
 
-    if (!valid_utf8(g_utf8_pending)) return env->NewString(nullptr, 0);
+    if (!valid_utf8(g_utf8_pending)) const jchar empty = 0;
+        return env->NewString(&empty, 0);
     jstring output = utf8_to_jstring(env, g_utf8_pending);
     g_utf8_pending.clear();
     return output;
