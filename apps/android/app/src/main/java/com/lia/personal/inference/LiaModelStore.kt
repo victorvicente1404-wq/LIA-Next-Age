@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.StatFs
 import android.provider.OpenableColumns
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
@@ -31,13 +32,7 @@ class LiaModelStore(
             throw ModelImportException("MODEL_TOO_LARGE")
         }
 
-        if (!modelsDirectory.exists() && !modelsDirectory.mkdirs()) {
-            throw ModelImportException("STORAGE_UNAVAILABLE")
-        }
-        if (!modelsDirectory.isDirectory || !modelsDirectory.canWrite()) {
-            throw ModelImportException("STORAGE_UNAVAILABLE")
-        }
-
+        ensureModelsDirectory()
         val availableBytes = StatFs(modelsDirectory.absolutePath).availableBytes
         if (declaredSize != null && declaredSize > availableBytes) {
             throw ModelImportException("INSUFFICIENT_SPACE")
@@ -84,7 +79,7 @@ class LiaModelStore(
                 throw ModelImportException("SOURCE_SIZE_MISMATCH")
             }
 
-            val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
+            val sha256 = digest.digest().toHex()
             val safeName = sanitizeName(displayName)
             val destination = File(modelsDirectory, "${sha256.take(16)}-$safeName.gguf")
             if (destination.exists()) {
@@ -103,6 +98,64 @@ class LiaModelStore(
             throw ModelImportException("IMPORT_IO_ERROR")
         } finally {
             if (temporary.exists()) temporary.delete()
+        }
+    }
+
+    /**
+     * Rebuilds the catalog from app-private files after process recreation.
+     * Only regular GGUF files with a valid header and a matching SHA-256
+     * filename prefix are exposed to the UI.
+     */
+    fun listImportedModels(): List<ImportedModel> {
+        ensureModelsDirectory()
+        return modelsDirectory.listFiles()
+            ?.asSequence()
+            ?.filter { it.isFile && it.name.endsWith(".gguf", ignoreCase = true) }
+            ?.mapNotNull { file -> inspectStoredModel(file) }
+            ?.sortedBy { it.originalName.lowercase() }
+            ?.toList()
+            ?: emptyList()
+    }
+
+    private fun inspectStoredModel(file: File): ImportedModel? {
+        return try {
+            if (file.length() < GGUF_MAGIC.size || file.length() > maxModelBytes) return null
+            val header = ByteArray(GGUF_MAGIC.size)
+            FileInputStream(file).use { input ->
+                var offset = 0
+                while (offset < header.size) {
+                    val count = input.read(header, offset, header.size - offset)
+                    if (count < 0) return null
+                    if (count > 0) offset += count
+                }
+            }
+            if (!hasGgufMagic(header)) return null
+
+            val digest = MessageDigest.getInstance("SHA-256")
+            FileInputStream(file).use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (count > 0) digest.update(buffer, 0, count)
+                }
+            }
+            val sha256 = digest.digest().toHex()
+            val expectedPrefix = sha256.take(16)
+            if (!file.name.startsWith("$expectedPrefix-")) return null
+            val displayName = displayNameFromStoredFileName(file.name) ?: return null
+            ImportedModel(file, displayName, file.length(), sha256, alreadyPresent = true)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun ensureModelsDirectory() {
+        if (!modelsDirectory.exists() && !modelsDirectory.mkdirs()) {
+            throw ModelImportException("STORAGE_UNAVAILABLE")
+        }
+        if (!modelsDirectory.isDirectory || !modelsDirectory.canWrite()) {
+            throw ModelImportException("STORAGE_UNAVAILABLE")
         }
     }
 
@@ -151,6 +204,15 @@ class LiaModelStore(
         internal fun hasGgufMagic(header: ByteArray): Boolean =
             header.size >= GGUF_MAGIC.size &&
                 header.copyOfRange(0, GGUF_MAGIC.size).contentEquals(GGUF_MAGIC)
+
+        internal fun displayNameFromStoredFileName(fileName: String): String? {
+            val match = Regex("^[0-9a-f]{16}-(.+)\\.gguf$", RegexOption.IGNORE_CASE)
+                .matchEntire(fileName) ?: return null
+            return match.groupValues[1].takeIf { it.isNotBlank() }
+        }
+
+        private fun ByteArray.toHex(): String =
+            joinToString("") { "%02x".format(it) }
     }
 }
 
