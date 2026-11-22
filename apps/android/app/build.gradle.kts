@@ -24,6 +24,7 @@ android {
             cmake {
                 arguments += listOf(
                     "-DANDROID_STL=c++_shared",
+                    "-DANDROID_PLATFORM=android-26",
                     "-DCMAKE_BUILD_TYPE=Release",
                     "-DGGML_NATIVE=OFF",
                     "-DGGML_OPENMP=OFF",
