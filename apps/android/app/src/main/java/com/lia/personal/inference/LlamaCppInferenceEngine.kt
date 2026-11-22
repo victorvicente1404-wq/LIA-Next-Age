@@ -42,29 +42,31 @@ class LlamaCppInferenceEngine : LiaInferenceEngine {
     }
 
     override suspend fun loadModel(modelFile: File) {
-        mutableStatus.value = InferenceStatus.Loading
-        try {
-            val ready = withContext(Dispatchers.IO) {
-                require(modelFile.isFile && modelFile.canRead()) { "MODEL_FILE_UNAVAILABLE" }
-                nativeLoadModel(modelFile.absolutePath, Runtime.getRuntime().availableProcessors())
-            }
-            if (!ready) {
+        generationMutex.withLock {
+            mutableStatus.value = InferenceStatus.Loading
+            try {
+                val ready = withContext(Dispatchers.IO) {
+                    require(modelFile.isFile && modelFile.canRead()) { "MODEL_FILE_UNAVAILABLE" }
+                    nativeLoadModel(modelFile.absolutePath, Runtime.getRuntime().availableProcessors())
+                }
+                if (!ready) {
+                    loaded.set(false)
+                    mutableStatus.value = InferenceStatus.Failed("MODEL_LOAD_FAILED")
+                    throw IllegalStateException("MODEL_LOAD_FAILED")
+                }
+                loaded.set(true)
+                loadedModelName = modelFile.name
+                mutableStatus.value = InferenceStatus.Ready(loadedModelName)
+            } catch (error: UnsatisfiedLinkError) {
                 loaded.set(false)
-                mutableStatus.value = InferenceStatus.Failed("MODEL_LOAD_FAILED")
-                throw IllegalStateException("MODEL_LOAD_FAILED")
+                mutableStatus.value = InferenceStatus.Failed("NATIVE_LIBRARY_UNAVAILABLE")
+                throw IllegalStateException("NATIVE_LIBRARY_UNAVAILABLE", error)
+            } catch (error: Exception) {
+                if (mutableStatus.value !is InferenceStatus.Failed) {
+                    mutableStatus.value = InferenceStatus.Failed("MODEL_LOAD_FAILED")
+                }
+                throw error
             }
-            loaded.set(true)
-            loadedModelName = modelFile.name
-            mutableStatus.value = InferenceStatus.Ready(loadedModelName)
-        } catch (error: UnsatisfiedLinkError) {
-            loaded.set(false)
-            mutableStatus.value = InferenceStatus.Failed("NATIVE_LIBRARY_UNAVAILABLE")
-            throw IllegalStateException("NATIVE_LIBRARY_UNAVAILABLE", error)
-        } catch (error: Exception) {
-            if (mutableStatus.value !is InferenceStatus.Failed) {
-                mutableStatus.value = InferenceStatus.Failed("MODEL_LOAD_FAILED")
-            }
-            throw error
         }
     }
 
@@ -108,10 +110,12 @@ class LlamaCppInferenceEngine : LiaInferenceEngine {
 
     override suspend fun unload() {
         cancelGeneration()
-        withContext(Dispatchers.IO) {
-            if (loaded.getAndSet(false)) nativeUnload()
+        generationMutex.withLock {
+            withContext(Dispatchers.IO) {
+                if (loaded.getAndSet(false)) nativeUnload()
+            }
+            mutableStatus.value = InferenceStatus.Unavailable
         }
-        mutableStatus.value = InferenceStatus.Unavailable
     }
 
     companion object {
