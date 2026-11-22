@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -185,6 +186,24 @@ private fun LiaApp() {
         }
     }
 
+    fun createNewConversation() {
+        if (sending) return
+        scope.launch {
+            try {
+                val conversation = withContext(Dispatchers.IO) {
+                    repository.createConversation("Nova conversa")
+                }
+                conversationId = conversation.id
+                chatLines = emptyList()
+                conversationCount = withContext(Dispatchers.IO) {
+                    repository.listConversations().size
+                }
+            } catch (_: Exception) {
+                modelStatus = "Não foi possível criar uma nova conversa local."
+            }
+        }
+    }
+
     fun sendMessage() {
         val clean = draft.trim()
         val activeId = conversationId
@@ -334,7 +353,16 @@ private fun LiaApp() {
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Conversa", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Conversa", style = MaterialTheme.typography.titleMedium)
+                OutlinedButton(onClick = { createNewConversation() }, enabled = !sending) {
+                    Text("Nova conversa")
+                }
+            }
             Column(
                 modifier = Modifier
                     .weight(1f)
