@@ -197,4 +197,4 @@ Before the Android client is considered connected:
 
 ## Current implementation status
 
-The existing Python core already provides local inference adapters, SQLite history and memory, a bounded tool registry, Lia Dev approval flows, and prototype voice adapters. A first native Kotlin/Compose shell now exists under `apps/android`; it does not yet implement the platform contracts or connect to the core. Android Keystore integration, Room-backed repositories, a local bridge, and an in-app llama.cpp runtime remain unimplemented.
+The existing Python core already provides local inference adapters, SQLite history and memory, a bounded tool registry, Lia Dev approval flows, and prototype voice adapters. The native Kotlin/Compose shell under `apps/android` now initializes a private SQLite store with separate conversation/message and explicit-memory tables, plus unit tests. It does not yet implement the platform contracts or connect to the Python core. Android Keystore integration, repository interfaces aligned to these contracts, a local bridge, and an in-app llama.cpp runtime remain unimplemented.
