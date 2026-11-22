@@ -335,8 +335,7 @@ Java_com_lia_personal_inference_LlamaCppInferenceEngine_nativeNextToken(
     g_batch.logits[0] = 1;
     if (llama_decode(g_context, g_batch) != 0) return nullptr;
 
-    if (!valid_utf8(g_utf8_pending)) const jchar empty = 0;
-        return env->NewString(&empty, 0);
+    if (!valid_utf8(g_utf8_pending)) return env->NewStringUTF("");
     jstring output = utf8_to_jstring(env, g_utf8_pending);
     g_utf8_pending.clear();
     return output;
