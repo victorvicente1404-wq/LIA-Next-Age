@@ -123,26 +123,31 @@ bool prepare_prompt(const std::vector<std::string> & roles,
 
     const char * chat_template = llama_model_chat_template(g_model, nullptr);
     std::string prompt;
+    bool template_applied = false;
     if (chat_template) {
         std::vector<char> formatted(32768);
         int32_t required = llama_chat_apply_template(
             chat_template, messages.data(), messages.size(), true,
             formatted.data(), static_cast<int32_t>(formatted.size()));
-        if (required < 0) return false;
-        if (required >= static_cast<int32_t>(formatted.size())) {
-            if (required > 128 * 1024) return false;
-            formatted.resize(static_cast<size_t>(required) + 1);
-            required = llama_chat_apply_template(
-                chat_template, messages.data(), messages.size(), true,
-                formatted.data(), static_cast<int32_t>(formatted.size()));
-            if (required < 0 || required >= static_cast<int32_t>(formatted.size())) return false;
+        if (required >= 0) {
+            if (required >= static_cast<int32_t>(formatted.size())) {
+                if (required > 128 * 1024) return false;
+                formatted.resize(static_cast<size_t>(required) + 1);
+                required = llama_chat_apply_template(
+                    chat_template, messages.data(), messages.size(), true,
+                    formatted.data(), static_cast<int32_t>(formatted.size()));
+            }
+            if (required >= 0 && required < static_cast<int32_t>(formatted.size())) {
+                prompt.assign(formatted.data(), static_cast<size_t>(required));
+                template_applied = true;
+            }
         }
-        prompt.assign(formatted.data(), static_cast<size_t>(required));
-    } else {
+    }
+    if (!template_applied) {
         for (size_t i = 0; i < roles.size(); ++i) {
-            prompt += roles[i] + ":\n" + contents[i] + "\n";
+            prompt += roles[i] + ":\\n" + contents[i] + "\\n";
         }
-        prompt += "assistant:\n";
+        prompt += "assistant:\\n";
     }
 
     const llama_vocab * vocab = llama_model_get_vocab(g_model);
