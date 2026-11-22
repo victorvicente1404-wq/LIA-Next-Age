@@ -13,6 +13,14 @@ The initial backend candidate is llama.cpp with GGUF models. The Android integra
 - Packaging the native libraries inside the APK removes the need for a separately running shell process, localhost server, PC, or remote inference API.
 - Keeping the inference adapter behind a Kotlin interface allows replacing or benchmarking the backend without rewriting chat, memory, or UI.
 
+## Upstream integration review
+
+The official Android binding was inspected at llama.cpp commit `cbb1c1c50bba81929387dea473873d1df87a6212` (2026-11-21). Its project license is MIT; retain the upstream copyright and license notice if any source is copied or redistributed.
+
+The sample provides a Kotlin `InferenceEngine` API, token streaming, GGUF metadata reader, and JNI/C++ implementation. However, its current Android library sample declares `minSdk = 33`, `ndkVersion = 29.0.13113456`, and CMake 3.31.6, while Lia currently targets `minSdk = 26` and a lower compile SDK. It is therefore not safe to add the sample as a drop-in dependency without an explicit compatibility decision and CI toolchain update. The sample also contains an app-specific singleton/lifecycle design that should not be adopted unchanged.
+
+Lia now defines its own Kotlin boundary in `apps/android/.../inference/LiaInferenceEngine.kt`. The planned adapter will own native model lifecycle and streaming, while Lia retains control of conversation context, persistence, cancellation, and policy. Before implementation, choose whether to raise the minimum Android version or build a smaller JNI adapter against a pinned llama.cpp source revision; do not silently change supported Android versions.
+
 ## Runtime boundaries
 
 1. The user chooses/imports a compatible GGUF model through Android's Storage Access Framework. Lia copies it into app-private model storage only after checking available space and confirming the action.
@@ -40,7 +48,7 @@ The first safe profile should use conservative context and generation limits, th
 
 - [x] Choose Android-native NDK packaging over a mandatory Termux server.
 - [x] Define the separation between UI, repository, inference adapter, and policy/orchestrator.
-- [ ] Inspect and pin an upstream llama.cpp Android integration revision and its license.
+- [x] Inspect and pin the upstream llama.cpp Android integration revision and its license.
 - [ ] Add the NDK/CMake native module and Kotlin JNI boundary.
 - [ ] Add model import, app-private storage, and model metadata validation.
 - [ ] Add streaming generation and cancellation.
