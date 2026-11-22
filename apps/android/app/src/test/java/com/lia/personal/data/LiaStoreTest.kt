@@ -45,6 +45,18 @@ class LiaStoreTest {
     }
 
     @Test
+    fun messageLimitReturnsTheMostRecentMessagesInChronologicalOrder() {
+        val conversation = store.createConversation("Conversa")
+        store.appendMessage(conversation.id, "user", "primeira")
+        store.appendMessage(conversation.id, "assistant", "segunda")
+        store.appendMessage(conversation.id, "user", "terceira")
+
+        val recent = store.getMessages(conversation.id, limit = 2)
+
+        assertEquals(listOf("segunda", "terceira"), recent.map { it.content })
+    }
+
+    @Test
     fun explicitMemoriesAreStoredSeparatelyFromConversationHistory() {
         val conversation = store.createConversation("Conversa")
         store.appendMessage(conversation.id, "user", "Gosto de construir projetos.")
