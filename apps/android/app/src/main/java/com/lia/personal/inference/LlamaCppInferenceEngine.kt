@@ -2,6 +2,7 @@ package com.lia.personal.inference
 
 import android.app.ActivityManager
 import android.content.Context
+import android.util.Log
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
@@ -54,9 +55,23 @@ class LlamaCppInferenceEngine(context: Context) : LiaInferenceEngine {
                     val activityManager = appContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
                     val memoryInfo = ActivityManager.MemoryInfo()
                     activityManager?.getMemoryInfo(memoryInfo)
-                    if (activityManager != null && memoryInfo.availMem < modelFile.length() + MIN_FREE_MEMORY_AFTER_LOAD) {
-                        mutableStatus.value = InferenceStatus.Failed("INSUFFICIENT_MEMORY")
-                        throw IllegalStateException("INSUFFICIENT_MEMORY")
+                    if (activityManager != null) {
+                        val availableBytes = memoryInfo.availMem
+                        val minimumBytes = MIN_FREE_MEMORY_BEFORE_LOAD
+                        Log.i(
+                            LOG_TAG,
+                            "Pre-load memory: availableMiB=${availableBytes / MIB}, " +
+                                "minimumMiB=${minimumBytes / MIB}, modelMiB=${modelFile.length() / MIB}, " +
+                                "lowMemory=${memoryInfo.lowMemory}"
+                        )
+                        // GGUF weights are memory-mapped by llama.cpp. Requiring the
+                        // entire file size as immediately free RAM double-counts pages
+                        // that the OS can map/reclaim and rejects otherwise viable loads.
+                        // Keep a real safety floor and respect Android's low-memory signal.
+                        if (memoryInfo.lowMemory || availableBytes < minimumBytes) {
+                            mutableStatus.value = InferenceStatus.Failed("INSUFFICIENT_MEMORY")
+                            throw IllegalStateException("INSUFFICIENT_MEMORY")
+                        }
                     }
                     nativeLoadModel(modelFile.absolutePath, Runtime.getRuntime().availableProcessors())
                 }
@@ -133,6 +148,8 @@ class LlamaCppInferenceEngine(context: Context) : LiaInferenceEngine {
         private const val MAX_PROMPT_MESSAGES = 32
         private const val MAX_MESSAGE_CHARS = 32_000
         private const val MAX_GENERATION_TOKENS = 256
-        private const val MIN_FREE_MEMORY_AFTER_LOAD = 768L * 1024 * 1024
+        private const val LOG_TAG = "LiaInference"
+        private const val MIB = 1024L * 1024
+        private const val MIN_FREE_MEMORY_BEFORE_LOAD = 768L * MIB
     }
 }
