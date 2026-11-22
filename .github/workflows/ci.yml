@@ -48,4 +48,4 @@ jobs:
           gradle-version: "8.11.1"
       - name: Build native Android debug APK
         working-directory: apps/android
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
