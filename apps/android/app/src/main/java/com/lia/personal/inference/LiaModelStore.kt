@@ -50,7 +50,7 @@ class LiaModelStore(
         try {
             val digest = MessageDigest.getInstance("SHA-256")
             var copied = 0L
-            FileInputStreamProxy(input).use { stream ->
+            input.use { stream ->
                 FileOutputStream(temporary).use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     val header = ByteArray(GGUF_MAGIC.size)
@@ -103,7 +103,6 @@ class LiaModelStore(
         } catch (_: IOException) {
             throw ModelImportException("IMPORT_IO_ERROR")
         } finally {
-            input.close()
             if (temporary.exists()) temporary.delete()
         }
     }
@@ -165,13 +164,3 @@ data class ImportedModel(
 )
 
 class ModelImportException(val diagnosticCode: String) : Exception(diagnosticCode)
-
-/** Keeps the resolver-owned stream under a single, explicit close scope. */
-private class FileInputStreamProxy(
-    private val delegate: java.io.InputStream,
-) : java.io.InputStream() {
-    override fun read(): Int = delegate.read()
-    override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
-        delegate.read(buffer, offset, length)
-    override fun close() = delegate.close()
-}
