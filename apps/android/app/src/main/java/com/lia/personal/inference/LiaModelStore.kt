@@ -5,7 +5,6 @@ import android.net.Uri
 import android.os.StatFs
 import android.provider.OpenableColumns
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
@@ -75,7 +74,7 @@ class LiaModelStore(
                         output.write(buffer, 0, count)
                     }
                     output.fd.sync()
-                    if (headerBytes != GGUF_MAGIC.size || !header.contentEquals(GGUF_MAGIC)) {
+                    if (headerBytes != GGUF_MAGIC.size || !hasGgufMagic(header)) {
                         throw ModelImportException("INVALID_GGUF")
                     }
                 }
