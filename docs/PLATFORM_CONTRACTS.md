@@ -173,7 +173,7 @@ When a separate runtime process is necessary:
 | Local data | Room/SQLite in app-private storage |
 | Preferences | DataStore |
 | Device secrets | Android Keystore |
-| Local model | llama.cpp through NDK/JNI, evaluated against optional Termux runtime |
+| Local model | llama.cpp through NDK/JNI; optional Termux only for development |
 | Audio capture/playback | AudioRecord / MediaRecorder and AudioTrack / platform playback |
 | Files | Storage Access Framework and scoped storage |
 | Notifications | NotificationListenerService after explicit user enablement |
@@ -197,4 +197,4 @@ Before the Android client is considered connected:
 
 ## Current implementation status
 
-The existing Python core already provides local inference adapters, SQLite history and memory, a bounded tool registry, Lia Dev approval flows, and prototype voice adapters. The native Kotlin/Compose shell under `apps/android` now initializes a private SQLite store with separate conversation/message and explicit-memory tables, plus unit tests. It does not yet implement the platform contracts or connect to the Python core. Android Keystore integration, repository interfaces aligned to these contracts, a local bridge, and an in-app llama.cpp runtime remain unimplemented.
+The existing Python core already provides local inference adapters, SQLite history and memory, a bounded tool registry, Lia Dev approval flows, and prototype voice adapters. The native Kotlin/Compose shell under `apps/android` initializes a private SQLite store with separate conversation/message and explicit-memory tables, plus Robolectric tests. A `LiaRepository` interface and SQLite adapter now isolate the storage boundary, with dedicated repository tests; the current UI is not yet wired through this interface. The app does not yet connect to the Python core. Android Keystore integration, a local bridge, and the in-app llama.cpp runtime remain unimplemented. The Android NDK inference direction and staged implementation plan are documented in `docs/ANDROID_INFERENCE.md`.
