@@ -299,11 +299,13 @@ Java_com_lia_personal_inference_LlamaCppInferenceEngine_nativeBeginPrompt(
 
     std::vector<llama_token> tokens;
     if (!prepare_prompt(roles, contents, tokens)) return JNI_FALSE;
+    const int32_t bounded_max_tokens = std::max(1, std::min(256, static_cast<int32_t>(max_tokens)));
+    if (tokens.size() + static_cast<size_t>(bounded_max_tokens) > CONTEXT_SIZE) return JNI_FALSE;
     llama_memory_clear(llama_get_memory(g_context), true);
     llama_sampler_reset(g_sampler);
     g_utf8_pending.clear();
     g_generated = 0;
-    g_max_tokens = std::max(1, std::min(256, static_cast<int32_t>(max_tokens)));
+    g_max_tokens = bounded_max_tokens;
     g_cancelled.store(false);
     return decode_prompt_tokens(tokens) ? JNI_TRUE : JNI_FALSE;
 }
