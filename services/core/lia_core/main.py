@@ -290,7 +290,6 @@ def create_app(
     app.state.tasks = TaskRunner(app.state.workspaces)
     app.state.git_operations = GitOperationManager(app.state.workspaces)
     app.state.inference_configured = bool(config.llm_base_url)
-    app.state.pairing_rate_limits = {}
     app.state.pairing = PairingStore(
         config.data_dir / "pairing.sqlite3",
         token_ttl_seconds=config.pairing_token_ttl_seconds,
@@ -457,16 +456,9 @@ def create_app(
         if not is_loopback(request):
             if request.url.scheme != "https":
                 raise HTTPException(status_code=403, detail="Pareamento remoto exige HTTPS.")
-            client_host = request.client.host if request.client else "unknown"
-            now = time.monotonic()
-            attempts = [
-                moment for moment in request.app.state.pairing_rate_limits.get(client_host, [])
-                if now - moment < 60
-            ]
-            if len(attempts) >= 5:
+            client_host = request.client.host if request.client else ""
+            if not request.app.state.pairing.allow_pairing_request(client_host):
                 raise HTTPException(status_code=429, detail="Muitas solicitações de pareamento. Aguarde um minuto.")
-            attempts.append(now)
-            request.app.state.pairing_rate_limits[client_host] = attempts
         try:
             result = request.app.state.pairing.create_request(
                 payload.device_name, payload.scopes
