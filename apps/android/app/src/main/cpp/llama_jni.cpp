@@ -52,13 +52,76 @@ void release_model_locked() {
     g_utf8_pending.clear();
 }
 
+void append_utf8(std::string & output, uint32_t codepoint) {
+    if (codepoint <= 0x7F) {
+        output.push_back(static_cast<char>(codepoint));
+    } else if (codepoint <= 0x7FF) {
+        output.push_back(static_cast<char>(0xC0 | (codepoint >> 6)));
+        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else if (codepoint <= 0xFFFF) {
+        output.push_back(static_cast<char>(0xE0 | (codepoint >> 12)));
+        output.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else {
+        output.push_back(static_cast<char>(0xF0 | (codepoint >> 18)));
+        output.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)));
+        output.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    }
+}
+
 std::string jstring_to_string(JNIEnv * env, jstring value) {
     if (!value) return {};
-    const char * chars = env->GetStringUTFChars(value, nullptr);
+    const jsize length = env->GetStringLength(value);
+    const jchar * chars = env->GetStringChars(value, nullptr);
     if (!chars) return {};
-    std::string result(chars);
-    env->ReleaseStringUTFChars(value, chars);
+    std::string result;
+    result.reserve(static_cast<size_t>(length) * 3);
+    for (jsize i = 0; i < length; ++i) {
+        uint32_t codepoint = chars[i];
+        if (codepoint >= 0xD800 && codepoint <= 0xDBFF && i + 1 < length) {
+            const uint32_t low = chars[i + 1];
+            if (low >= 0xDC00 && low <= 0xDFFF) {
+                codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00);
+                ++i;
+            }
+        }
+        append_utf8(result, codepoint);
+    }
+    env->ReleaseStringChars(value, chars);
     return result;
+}
+
+jstring utf8_to_jstring(JNIEnv * env, const std::string & value) {
+    std::vector<jchar> utf16;
+    utf16.reserve(value.size());
+    const auto * bytes = reinterpret_cast<const unsigned char *>(value.data());
+    size_t i = 0;
+    while (i < value.size()) {
+        const unsigned char first = bytes[i++];
+        uint32_t codepoint = first;
+        if ((first & 0xE0) == 0xC0) {
+            codepoint = (first & 0x1F) << 6;
+            codepoint |= bytes[i++] & 0x3F;
+        } else if ((first & 0xF0) == 0xE0) {
+            codepoint = (first & 0x0F) << 12;
+            codepoint |= (bytes[i++] & 0x3F) << 6;
+            codepoint |= bytes[i++] & 0x3F;
+        } else if ((first & 0xF8) == 0xF0) {
+            codepoint = (first & 0x07) << 18;
+            codepoint |= (bytes[i++] & 0x3F) << 12;
+            codepoint |= (bytes[i++] & 0x3F) << 6;
+            codepoint |= bytes[i++] & 0x3F;
+        }
+        if (codepoint <= 0xFFFF) {
+            utf16.push_back(static_cast<jchar>(codepoint));
+        } else {
+            codepoint -= 0x10000;
+            utf16.push_back(static_cast<jchar>(0xD800 + (codepoint >> 10)));
+            utf16.push_back(static_cast<jchar>(0xDC00 + (codepoint & 0x3FF)));
+        }
+    }
+    return env->NewString(utf16.data(), static_cast<jsize>(utf16.size()));
 }
 
 bool valid_utf8(const std::string & value) {
@@ -271,8 +334,8 @@ Java_com_lia_personal_inference_LlamaCppInferenceEngine_nativeNextToken(
     g_batch.logits[0] = 1;
     if (llama_decode(g_context, g_batch) != 0) return nullptr;
 
-    if (!valid_utf8(g_utf8_pending)) return env->NewStringUTF("");
-    jstring output = env->NewStringUTF(g_utf8_pending.c_str());
+    if (!valid_utf8(g_utf8_pending)) return env->NewString(nullptr, 0);
+    jstring output = utf8_to_jstring(env, g_utf8_pending);
     g_utf8_pending.clear();
     return output;
 }
