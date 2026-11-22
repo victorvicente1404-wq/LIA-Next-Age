@@ -135,14 +135,40 @@ class GitOperationManager:
             self._run(root, "read-tree", head, env_overrides=index_env)
             digest = hashlib.sha256()
             for relative in sorted(paths):
-                path = root / relative
+                parts = Path(relative).parts
                 flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                directory_fd: int | None = None
                 try:
-                    descriptor = os.open(path, flags)
+                    if os.open in os.supports_dir_fd:
+                        directory_flags = (
+                            os.O_RDONLY
+                            | getattr(os, "O_DIRECTORY", 0)
+                            | getattr(os, "O_NOFOLLOW", 0)
+                        )
+                        directory_fd = os.open(root, directory_flags)
+                        for part in parts[:-1]:
+                            next_fd = os.open(
+                                part,
+                                directory_flags,
+                                dir_fd=directory_fd,
+                            )
+                            os.close(directory_fd)
+                            directory_fd = next_fd
+                        descriptor = os.open(
+                            parts[-1], flags, dir_fd=directory_fd
+                        )
+                    else:
+                        path = root.joinpath(*parts)
+                        if path.is_symlink() or not path.resolve().is_relative_to(root):
+                            raise OSError("Caminho fora do workspace.")
+                        descriptor = os.open(path, flags)
                 except OSError as exc:
                     raise GitOperationError(
                         "Um arquivo selecionado não pôde ser aberto com segurança."
                     ) from exc
+                finally:
+                    if directory_fd is not None:
+                        os.close(directory_fd)
                 try:
                     file_stat = os.fstat(descriptor)
                     if not stat.S_ISREG(file_stat.st_mode):
