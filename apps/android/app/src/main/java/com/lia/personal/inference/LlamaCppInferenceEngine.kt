@@ -25,6 +25,7 @@ class LlamaCppInferenceEngine : LiaInferenceEngine {
     override val status: StateFlow<InferenceStatus> = mutableStatus.asStateFlow()
     private val generationMutex = Mutex()
     private val loaded = AtomicBoolean(false)
+    @Volatile private var loadedModelName: String = "modelo local"
 
     private external fun nativeLoadModel(modelPath: String, threads: Int): Boolean
     private external fun nativeBeginPrompt(roles: Array<String>, contents: Array<String>, maxTokens: Int): Boolean
@@ -53,7 +54,8 @@ class LlamaCppInferenceEngine : LiaInferenceEngine {
                 throw IllegalStateException("MODEL_LOAD_FAILED")
             }
             loaded.set(true)
-            mutableStatus.value = InferenceStatus.Ready(modelFile.name)
+            loadedModelName = modelFile.name
+            mutableStatus.value = InferenceStatus.Ready(loadedModelName)
         } catch (error: UnsatisfiedLinkError) {
             loaded.set(false)
             mutableStatus.value = InferenceStatus.Failed("NATIVE_LIBRARY_UNAVAILABLE")
@@ -87,9 +89,8 @@ class LlamaCppInferenceEngine : LiaInferenceEngine {
                 }
             } finally {
                 if (loaded.get()) {
-                    mutableStatus.value = InferenceStatus.Ready(
-                        (mutableStatus.value as? InferenceStatus.Ready)?.modelName ?: "modelo local",
-                    )
+                    nativeCancel()
+                    mutableStatus.value = InferenceStatus.Ready(loadedModelName)
                 }
             }
         }
