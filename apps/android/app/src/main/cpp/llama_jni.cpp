@@ -217,10 +217,10 @@ bool prepare_prompt(const std::vector<std::string> & roles,
             g_model, "general.architecture", architecture, sizeof(architecture));
         if (architecture_size > 0 && std::string(architecture) == "qwen2") {
             for (size_t i = 0; i < roles.size(); ++i) {
-                prompt += "<|im_start|>" + roles[i] + "\\n" +
-                    contents[i] + "<|im_end|>\\n";
+                prompt += "<|im_start|>" + roles[i] + "\n" +
+                    contents[i] + "<|im_end|>\n";
             }
-            prompt += "<|im_start|>assistant\\n";
+            prompt += "<|im_start|>assistant\n";
             template_applied = true;
             LOGE("Prompt format: reconstructed Qwen2 ChatML (missing/unsupported GGUF template)");
         } else {
