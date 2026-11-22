@@ -58,6 +58,7 @@ O modelo local é o padrão. Provedores remotos podem ser configurados voluntari
 - [x] Contratos neutros de plataforma definidos para orientar o cliente nativo.
 - [ ] Revisão final de segurança e concorrência da Lia Dev.
 - [ ] Cliente Android nativo, armazenamento de credenciais via Android Keystore e ponte local com o núcleo.
+- [x] Backend nativo llama.cpp compilado para Android arm64; no Galaxy A37, o GGUF Qwen 2.5 1.5B foi carregado com sucesso. A qualidade da geração e o fluxo de conversa ainda estão em validação.
 - [ ] Runtime de inferência e voz validados em dispositivo Android real.
 - [ ] Integrações Android (notificações, arquivos, câmera, acessibilidade opcional e automações) implementadas uma por uma com permissões explícitas.
 - [ ] Validar desktop como plataforma complementar.
