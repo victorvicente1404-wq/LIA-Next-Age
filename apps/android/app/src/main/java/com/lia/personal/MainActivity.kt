@@ -21,13 +21,19 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.lia.personal.data.LiaStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,7 +49,23 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LiaApp() {
+    val context = LocalContext.current
+    val store = remember { LiaStore(context) }
     var draft by remember { mutableStateOf("") }
+    var storageReady by remember { mutableStateOf(false) }
+    var storageError by remember { mutableStateOf(false) }
+
+    LaunchedEffect(store) {
+        try {
+            withContext(Dispatchers.IO) { store.writableDatabase }
+            storageReady = true
+        } catch (_: Exception) {
+            storageError = true
+        }
+    }
+    DisposableEffect(store) {
+        onDispose { store.close() }
+    }
 
     Scaffold(
         topBar = {
@@ -74,12 +96,16 @@ private fun LiaApp() {
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        text = "Núcleo local em preparação",
+                        text = when {
+                            storageReady -> "Armazenamento local preparado"
+                            storageError -> "Não foi possível abrir o armazenamento local"
+                            else -> "Preparando armazenamento local…"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Esta é a primeira estrutura nativa da Lia. A conversa será ativada quando o runtime local e o armazenamento do Android estiverem conectados. Nenhuma mensagem será enviada para um serviço remoto.",
+                        text = "O histórico de conversas e as memórias explícitas terão armazenamento separado no próprio aparelho. A conversa será ativada quando o modelo local estiver conectado. Nenhuma mensagem será enviada para um serviço remoto.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
